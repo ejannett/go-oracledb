@@ -1,3 +1,5 @@
+TEST CHANGE to validate template checks, should not be merged 
+
 # Oracle Database Driver for Go
 
 Oracle Database Driver for Go is a native Go driver for Go's [database/sql](https://pkg.go.dev/database/sql) package. It supports Oracle Database versions
