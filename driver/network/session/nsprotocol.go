@@ -44,6 +44,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"net"
 	"time"
 
 	"github.com/oracle/go-driver/driver/common"
@@ -94,6 +95,21 @@ func NewNetworkSession() *NetworkSession {
 		ControlPkt:         &ControlPacket{},
 		byteOrder:          BIG_ENDIAN,
 	}
+}
+
+func (ns *NetworkSession) GetRemoteAddress() string {
+	tlsAdapter, ok := ns.NTAdapter.(*transport.NTTCPS)
+	if !ok {
+		return ""
+	}
+	if tlsAdapter.Stream == nil {
+		return ""
+	}
+	remoteAddr, ok := tlsAdapter.Stream.RemoteAddr().(*net.TCPAddr)
+	if !ok || remoteAddr == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s:%d", remoteAddr.IP, remoteAddr.Port)
 }
 
 // transportConnect establishes the transport-level connection

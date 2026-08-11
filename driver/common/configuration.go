@@ -468,6 +468,10 @@ type OracleCredentials struct {
 	LogonMode string `propertyName:"logon_mode" default:"" validator:"validateLogonMode" help:"specifies the logon mode for the connection"`
 	// Password stores the database password configuration.
 	Password string `cliVisible:"false" sensitive:"true"`
+	// TokenAuthentication selects token-based authentication.
+	TokenAuthentication string `propertyName:"token_authentication" default:"" validator:"validateTokenAuthentication" help:"selects token-based authentication such as OCI_TOKEN"`
+	// TokenLocation points to a token file or token directory used for token-based authentication.
+	TokenLocation string `propertyName:"token_location" default:"" help:"points to a token file or token directory used for token-based authentication"`
 }
 
 func (config OracleCredentials) String() string {
@@ -938,6 +942,7 @@ func init() {
 	_fieldsValidators["validateZeroOrPositive"] = validateZeroOrPositive
 	_fieldsValidators["validateLoggingLevel"] = validateLoggingLevel
 	_fieldsValidators["validateUserName"] = validateUserName
+	_fieldsValidators["validateTokenAuthentication"] = validateTokenAuthenticationValue
 
 	// populates flags for each driver config items
 	NewOracleDriverConfig().populateFlags()
@@ -1166,6 +1171,34 @@ func validateLogonModeValue(value reflect.Value, valueName string) (any, error) 
 		value,
 		valueName,
 		[]string{KpzLogonSysdba.String(), KpzLogonSysoper.String()},
+	)
+}
+
+func validateTokenAuthenticationValue(value reflect.Value, valueName string) (any, error) {
+	if value.Kind() != reflect.String {
+		return nil, NewOracleError(
+			InvalidConnectionParameter,
+			nil,
+			value,
+			valueName,
+			[]string{"OCI_TOKEN"},
+		)
+	}
+
+	normalized := strings.TrimSpace(strings.ToUpper(value.String()))
+	if normalized == "" {
+		return "", nil
+	}
+	if normalized == "OCI_TOKEN" {
+		return normalized, nil
+	}
+
+	return nil, NewOracleError(
+		InvalidConnectionParameter,
+		nil,
+		value.String(),
+		valueName,
+		[]string{"OCI_TOKEN"},
 	)
 }
 

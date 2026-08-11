@@ -90,6 +90,11 @@ func (connInstantiator *connectionInstantiator) GetConnection(ctx context.Contex
 		return nil, connInstantiator.localizationService.LocalizeError(err)
 	}
 
+	// Add REMOTE_ADDRESS(IP:PORT) to session properties
+	remoteAddsProperty := &common.Properties[string]{}
+	remoteAddsProperty.SetProperty("REMOTE_ADDRESS", connInstantiator.ns.GetRemoteAddress())
+	sessCtx.UpdateSessionProperties(remoteAddsProperty)
+
 	// Add connection properties to shelf for downstream consumers
 	shelf.UpdateConnectionProperties(connInstantiator.connectionProperties)
 	shelf.RegisterLocalizationService(connInstantiator.localizationService)
@@ -140,6 +145,10 @@ func GetAuthenticator(parameters *common.OracleDriverConfig) (Authenticator, err
 		return nil, common.NewOracleError(common.InternalError, nil)
 	}
 
+	if parameters.Credentials.TokenAuthentication == "OCI_TOKEN" {
+		return createTokenAuthenticator(parameters)
+	}
+
 	if len(parameters.Credentials.User) == 0 {
 		return nil, common.NewOracleError(common.EmptyUsernameError, nil, nil)
 	}
@@ -162,6 +171,14 @@ func createPasswordAuthenticator(parameters *common.OracleDriverConfig) (Authent
 	return NewPasswordAuthenticator(parameters.Credentials.User,
 		parameters.Credentials.Password,
 		parameters.ConnectDescriptor), nil
+}
+
+func createTokenAuthenticator(parameters *common.OracleDriverConfig) (Authenticator, error) {
+	return NewTokenAuthenticator(
+		parameters.Credentials.TokenAuthentication,
+		parameters.Credentials.TokenLocation,
+		parameters.ConnectDescriptor,
+	), nil
 }
 
 // *** Negotiator Factory ***

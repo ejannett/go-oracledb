@@ -1069,6 +1069,11 @@ type mockNetworkSession struct {
 	inband          bool
 }
 
+// GetRemoteAddress implements [common.NetworkSession].
+func (m *mockNetworkSession) GetRemoteAddress() string {
+	return "127.0.0.0:1521"
+}
+
 // newTestConnection creates a connection without querying DBTIMEZONE. Tests that
 // exercise connection behavior independently of initialization use this helper.
 func newTestConnection(

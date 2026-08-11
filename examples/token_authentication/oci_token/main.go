@@ -36,62 +36,58 @@
 ** SOFTWARE.
  */
 
-package common
+// Package main demonstrates connecting to Oracle using OCI IAM token
+// authentication and verifying the session with SELECT 'OK' FROM DUAL.
+package main
 
 import (
 	"context"
-	"database/sql/driver"
+	"database/sql"
+	"fmt"
+	"log"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/oracle/go-driver/oracle"
 )
 
-const (
-	NSFIMM = 0x0040 // non graceful disconnect
-)
+func main() {
+	connectDescriptor := requiredEnv("ORACLE_GO_OCI_TOKEN_CONNECT_DESCRIPTOR")
+	tokenLocation := requiredEnv("ORACLE_GO_OCI_TOKEN_LOCATION")
 
-// NetworkSession implementors can disconnect a network connection
-type NetworkSession interface {
-	// Disconnect disconnects the network connection
-	// Parameters:
-	//   - context : the context to be used
-	//   - flags: disconnect flags mask. Possible flags NSFIMM
-	Disconnect(ctx context.Context, flags int) error
+	cfg := oracle.NewOracleDriverConfig()
+	cfg.ConnectDescriptor = connectDescriptor
+	cfg.Credentials.TokenAuthentication = "OCI_TOKEN"
+	cfg.Credentials.TokenLocation = tokenLocation
 
-	// CancelOperation sends a message to the database to cancel the current
-	// execution
-	CancelOperation(ctx context.Context) error
+	connector, err := oracle.NewOracleConnector(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// CheckInbandNotification non-blocking call that checks if a inband
-	// notification has been received.
-	// Returns: true if an inband notification has been received otherwise false.
-	CheckInbandNotification() bool
+	db := sql.OpenDB(connector)
+	defer db.Close()
 
-	GetRemoteAddress() string
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		log.Fatal(err)
+	}
+
+	var result string
+	if err := db.QueryRowContext(ctx, "SELECT 'OK' FROM DUAL").Scan(&result); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("Query result: %s\n", result)
 }
 
-// DataBuffer The Marshaller uses this interface to marshal data
-type DataBuffer interface {
-	// WriteByteWithContext Writes one byte.
-	WriteByteWithContext(context.Context, byte) error
-	// WriteBytesWithContext WriteBytes Writes the entire content of a byte array.
-	WriteBytesWithContext(context.Context, []byte) error
-
-	// ReadByteWithContext ReadByte Reads one byte.
-	ReadByteWithContext(context.Context) (byte, error)
-	// ReadBytesWithContext ReadBytes Read the specified number of bytes and returns a byte array of that size.
-	ReadBytesWithContext(context.Context, int32) (*[]byte, error)
-
-	// Flush Flushes the data
-	Flush(context.Context) error
-}
-
-// ConnectionInstantiator implementors can create connections to the database
-type ConnectionInstantiator interface {
-	// GetConnection returns a new connection to the database
-	GetConnection(ctx context.Context) (driver.Conn, error)
-}
-
-// Comparable implemented by objects that can be compare
-//
-//	returns true if both equals
-type Comparable interface {
-	Equals(c Comparable) bool
+func requiredEnv(name string) string {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		log.Fatalf("missing required environment variable %s", name)
+	}
+	return value
 }

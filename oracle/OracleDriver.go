@@ -226,6 +226,12 @@ func (drv *Driver) openConnector(dsn string) (driver.Connector, error) {
 		return nil, common.NewOracleError(common.NamingDSNInvalid, validateErr, dsn)
 	}
 
+	// question: should we force SSLServerDNMatch, or check that it has
+	// be set and return an error if it hasn't?
+	if strings.EqualFold(confToUse.Credentials.TokenAuthentication, "OCI_TOKEN") {
+		confToUse.ConnectionProperties.SSLServerDNMatch = true
+	}
+
 	// let network layer parse it now.
 	// build again a Data Source Name that network layer can understand
 	// TODO: make network layer use the same and do not parse again.
