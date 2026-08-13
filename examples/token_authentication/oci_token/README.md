@@ -1,17 +1,6 @@
 # OCI IAM token authentication example
 
-This directory keeps the runnable Go sample in [main.go](C:/work/driver/go-driver/go-oracledb/examples/token_authentication/oci_token/main.go) and replaces the old setup scripts with a short guide for configuring Autonomous Database for OCI IAM authentication.
-
-The Go driver expects:
-
-- `TokenAuthentication = "OCI_TOKEN"`
-- `TokenLocation` pointing to a directory that contains an OCI database token bundle
-- a TCPS connect descriptor for the target Autonomous Database
-
-By default, OCI CLI writes the token bundle to `~/.oci/db-token`. The driver looks for:
-
-- `token`
-- `oci_db_key.pem`
+This directory contains a runnable Go sample that connects using OCI IAM token authentication.
 
 ## 1. Prerequisites
 
@@ -29,7 +18,21 @@ You also need these identifiers:
 - Autonomous Database OCID
 - IAM user name or IAM user OCID
 
-## 2. Create IAM policy and group membership
+## 2. Configure the database for OCI IAM authentication
+
+For Autonomous Database, the database-side setup has three parts:
+
+- create or identify an IAM group for database access
+- create an IAM policy that allows the group to connect to the database
+- enable `OCI_IAM` as the external authentication provider in the database, and map IAM identities to database users
+
+At a high level:
+
+1. Create or identify an IAM group for database users.
+2. Add the IAM user to that group.
+3. Create a policy that allows the group to connect to the target Autonomous Database.
+4. In the database, enable external authentication with `type => 'OCI_IAM'`.
+5. Map the IAM principal to a global database user.
 
 The IAM user must be in a group that is allowed to connect to the Autonomous Database.
 
@@ -42,11 +45,7 @@ Allow group ADB_IAM_DB_USERS to use database-connections in compartment id <COMP
 
 You can widen the scope to the whole compartment or tenancy if that is what your environment needs, but database scope is the safest default.
 
-Then add the IAM user to that group.
-
-## 3. Enable OCI IAM authentication in the database
-
-Connect as `ADMIN` and enable OCI IAM external authentication:
+As `ADMIN`, enable OCI IAM authentication in the database:
 
 ```sql
 BEGIN
@@ -69,7 +68,7 @@ END;
 /
 ```
 
-You can verify the setting with:
+You can verify the database setting with:
 
 ```sql
 SELECT name, value
@@ -83,20 +82,25 @@ Expected value:
 OCI_IAM
 ```
 
-## 4. Map the IAM principal to a database user
+After the provider is enabled, map IAM identities to the database.
 
-Create a globally identified database user for the IAM principal. For a direct user mapping:
+Two common patterns are:
+
+- direct mapping of an IAM user to a global schema
+- shared mapping of an IAM group to a global schema
+
+Example direct mapping:
 
 ```sql
-CREATE USER IAM_USER IDENTIFIED GLOBALLY AS 'IAM_PRINCIPAL_NAME=<principal>';
-GRANT CREATE SESSION TO IAM_USER;
+CREATE USER <database user> IDENTIFIED GLOBALLY AS 'IAM_PRINCIPAL_NAME=<principal>';
+GRANT CREATE SESSION TO <database user>;
 ```
 
 If the user already exists:
 
 ```sql
-ALTER USER IAM_USER IDENTIFIED GLOBALLY AS 'IAM_PRINCIPAL_NAME=<principal>';
-GRANT CREATE SESSION TO IAM_USER;
+ALTER USER <database user> IDENTIFIED GLOBALLY AS 'IAM_PRINCIPAL_NAME=<principal>';
+GRANT CREATE SESSION TO <database user>;
 ```
 
 The `<principal>` value is usually one of:
@@ -105,55 +109,59 @@ The `<principal>` value is usually one of:
 - `<domain>/<user>` for non-default identity domains
 - `<tenancy_ocid>:<domain>/<user>` for cross-tenancy cases
 
-If you prefer group-based mapping instead of user-based mapping, use:
+Example shared mapping through an IAM group:
 
 ```sql
-CREATE USER IAM_GROUP_USER IDENTIFIED GLOBALLY AS 'IAM_GROUP_NAME=<group>';
-GRANT CREATE SESSION TO IAM_GROUP_USER;
+CREATE USER <database user> IDENTIFIED GLOBALLY AS 'IAM_GROUP_NAME=<group>';
+GRANT CREATE SESSION TO <database user>;
 ```
 
-## 5. Generate or refresh the database token
+## 3. Generate a token using OCI CLI
 
 Use OCI CLI to generate a fresh database token bundle:
 
 ```bash
-oci iam db-token get --db-token-location ~/.oci/db-token
+oci iam db-token get --db-token-location "$HOME/.oci/db-token"
 ```
 
-On Windows:
+This command writes the token bundle to the target directory. The Go driver expects that directory to contain:
 
-```powershell
-oci iam db-token get --db-token-location $env:USERPROFILE\.oci\db-token
-```
-
-This command writes the token and key files into the target directory. Re-run the same command whenever you want to refresh the token bundle.
+- `token`
+- `oci_db_key.pem`
 
 If you want to limit the token to a specific database, compartment, or tenancy, pass `--scope`. For example:
 
 ```bash
 oci iam db-token get \
-  --db-token-location ~/.oci/db-token \
+  --db-token-location "$HOME/.oci/db-token" \
   --scope "urn:oracle:db::id::<COMPARTMENT_OR_DATABASE_SCOPE>"
 ```
 
-## 6. Run the Go sample
+The token is short-lived. Regenerate it when it expires.
+
+## 4. Put the token on disk
+
+The sample reads the OCI token bundle from `ORACLE_GO_OCI_TOKEN_LOCATION`.
+
+That variable should point to the OCI token bundle directory, which must contain:
+
+- `token`
+- `oci_db_key.pem`
+
+The default OCI CLI location is:
+
+```text
+$HOME/.oci/db-token
+```
+
+## 5. Run the Go sample
 
 The sample reads its configuration from these environment variables:
 
-- `ORACLE_GO_OCI_TOKEN_CONNECT_DESCRIPTOR`
-- `ORACLE_GO_OCI_TOKEN_LOCATION`
+- `ORACLE_GO_OCI_TOKEN_CONNECT_DESCRIPTOR`: the TCPS connect descriptor for the target database
+- `ORACLE_GO_OCI_TOKEN_LOCATION`: the OCI token bundle directory containing `token` and `oci_db_key.pem`
 
 Set them before running [main.go](C:/work/driver/go-driver/go-oracledb/examples/token_authentication/oci_token/main.go).
-
-PowerShell:
-
-```powershell
-$env:ORACLE_GO_OCI_TOKEN_CONNECT_DESCRIPTOR = "(description=(address=(protocol=tcps)(port=1522)(host=<adb-host>))(connect_data=(service_name=<service-name>))(security=(ssl_server_dn_match=yes)))"
-$env:ORACLE_GO_OCI_TOKEN_LOCATION = "$env:USERPROFILE\.oci\db-token"
-go run ./examples/token_authentication/oci_token
-```
-
-Bash:
 
 ```bash
 export ORACLE_GO_OCI_TOKEN_CONNECT_DESCRIPTOR="(description=(address=(protocol=tcps)(port=1522)(host=<adb-host>))(connect_data=(service_name=<service-name>))(security=(ssl_server_dn_match=yes)))"
@@ -161,24 +169,22 @@ export ORACLE_GO_OCI_TOKEN_LOCATION="$HOME/.oci/db-token"
 go run ./examples/token_authentication/oci_token
 ```
 
-If the sample connects successfully, it prints:
+If the sample connects successfully, it prints the connected database user:
 
 ```text
-Query result: OK
+Username: <database user>
 ```
 
-## 7. Common checks when login fails
+## 6. Common checks when login fails
 
-- Confirm the IAM user is in the expected IAM group.
-- Confirm the policy includes `database-connections`.
-- Confirm `identity_provider_type` is `OCI_IAM`.
-- Confirm the database user is mapped with the correct `IAM_PRINCIPAL_NAME` or `IAM_GROUP_NAME`.
-- Confirm the token bundle directory contains a fresh `token` and `oci_db_key.pem`.
-- Confirm the connect descriptor uses TCPS and the correct ADB service name.
+- Confirm that the IAM user is in the expected IAM group.
+- Confirm that the policy includes `database-connections`.
+- Confirm that `identity_provider_type` is `OCI_IAM`.
+- Confirm that the database user is mapped with the correct `IAM_PRINCIPAL_NAME` or `IAM_GROUP_NAME`.
+- Confirm that the token bundle directory contains a fresh `token` and `oci_db_key.pem`.
+- Confirm that the connect descriptor uses TCPS and the correct Autonomous Database service name.
 
 ## References
-
-This README is based on the OCI CLI and Autonomous Database documentation, especially:
 
 - OCI CLI `oci iam db-token get`: <https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/oci_cli_docs/cmdref/iam/db-token/get.html>
 - Enable IAM authentication on Autonomous Database: <https://docs.oracle.com/en-us/iaas/autonomous-database-shared/doc/enable-iam-authentication.html>

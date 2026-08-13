@@ -1,16 +1,6 @@
 # OAuth token authentication example
 
-This directory contains a runnable Go sample for connecting with generic OAuth token authentication, such as a Microsoft Entra ID database access token.
-
-The Go driver expects:
-
-- `TokenAuthentication = "OAUTH"`
-- `TokenLocation` pointing to either:
-  - a token file, or
-  - a directory containing a file named `token`
-- a TCPS connect descriptor for the target database
-
-Unlike `OCI_TOKEN`, the `OAUTH` mode does not require `oci_db_key.pem`.
+This directory contains a runnable Go sample that connects using generic OAuth token authentication, such as a Microsoft Entra ID database access token.
 
 ## 1. Prerequisites
 
@@ -28,7 +18,7 @@ For Microsoft Entra ID on Autonomous Database, the database must be configured w
 For Autonomous Database, the database-side setup has two parts:
 
 - register and configure the database application in Microsoft Entra ID
-- enable `AZURE_AD` as the external authentication provider in the database and map Entra identities to database users or roles
+- enable `AZURE_AD` as the external authentication provider in the database, and map Entra identities to database users or roles
 
 At a high level:
 
@@ -57,7 +47,7 @@ END;
 The required values come from the Entra app registration:
 
 - `tenant_id`: the Entra tenant ID
-- `application_id`: the application/client ID of the database app registration
+- `application_id`: the application or client ID of the database app registration
 - `application_id_uri`: the Application ID URI for that app registration
 
 You can verify the database setting with:
@@ -84,22 +74,22 @@ Two common patterns are:
 Example direct mapping:
 
 ```sql
-CREATE USER AZURE_USER IDENTIFIED GLOBALLY AS 'AZURE_USER=<entra-user>';
-GRANT CREATE SESSION TO AZURE_USER;
+CREATE USER <database user> IDENTIFIED GLOBALLY AS 'AZURE_USER=<entra-user>';
+GRANT CREATE SESSION TO <database user>;
 ```
 
 Example shared mapping through an app role:
 
 ```sql
-CREATE USER AZURE_APPROLE_USER IDENTIFIED GLOBALLY AS 'AZURE_ROLE=<app-role-name>';
-GRANT CREATE SESSION TO AZURE_APPROLE_USER;
+CREATE USER <database user> IDENTIFIED GLOBALLY AS 'AZURE_ROLE=<app-role-name>';
+GRANT CREATE SESSION TO <database user>;
 ```
 
-The exact global mapping string depends on how you configured Entra integration and whether you are mapping a user, group, or app role. Use the mapping pattern documented for your Entra configuration and token claims.
+The exact global mapping string depends on your Entra configuration and on whether you are mapping a user, group, or app role. Use the mapping pattern documented for your configuration and token claims.
 
 ## 3. Generate a token using Microsoft Entra ID
 
-There are several supported Entra flows. For a quick example, Azure CLI is a practical way to fetch a token for a signed-in user.
+There are several supported Entra flows. For a quick example, you can use Azure CLI to fetch a token for a signed-in user.
 
 First, sign in:
 
@@ -123,9 +113,9 @@ az account get-access-token \
   --tenant "<tenant-id>"
 ```
 
-The command returns JSON. Write the `accessToken` field to a file, or to a file named `token` in a directory that you will pass to the Go driver.
+The command returns JSON. Write the `accessToken` field either to a file or to a file named `token` in a directory that you will pass to the Go driver.
 
-Bash example:
+Example:
 
 ```bash
 mkdir -p "$HOME/tokens/oauth"
@@ -134,14 +124,6 @@ az account get-access-token \
   --tenant "<tenant-id>" \
   --query accessToken \
   --output tsv > "$HOME/tokens/oauth/token"
-```
-
-PowerShell example:
-
-```powershell
-New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\\tokens\\oauth" | Out-Null
-$token = az account get-access-token --resource "<application-id-uri>" --tenant "<tenant-id>" --query accessToken --output tsv
-Set-Content -LiteralPath "$env:USERPROFILE\\tokens\\oauth\\token" -Value $token -NoNewline
 ```
 
 The token is short-lived. Regenerate it when it expires.
@@ -153,7 +135,7 @@ The sample reads the access token from `ORACLE_GO_OAUTH_TOKEN_LOCATION`.
 You can point that variable at either:
 
 - a token file
-- or a directory containing a file named `token`
+- a directory containing a file named `token`
 
 Example token file contents:
 
@@ -161,35 +143,18 @@ Example token file contents:
 eyJ0eXAiOiJKV1QiLCJhbGciOiJ...
 ```
 
-The token should be stored as a single line of UTF-8 text.
+Store the token as a single line of UTF-8 text.
 
 ## 5. Run the Go sample
 
 The sample reads its configuration from these environment variables:
 
-- `ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR`
-- `ORACLE_GO_OAUTH_TOKEN_LOCATION`
+- `ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR`: the TCPS connect descriptor for the target database
+- `ORACLE_GO_OAUTH_TOKEN_LOCATION`: the token location; it can point to either a token file or a directory containing a file named `token`
 
 Set them before running [main.go](C:/work/driver/go-driver/go-oracledb/examples/token_authentication/oauth/main.go).
 
-PowerShell:
-
-```powershell
-$env:ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR = "(description=(address=(protocol=tcps)(port=1522)(host=<db-host>))(connect_data=(service_name=<service-name>))(security=(ssl_server_dn_match=yes)))"
-$env:ORACLE_GO_OAUTH_TOKEN_LOCATION = "$env:USERPROFILE\\tokens\\db-token.txt"
-go run ./examples/token_authentication/oauth
-```
-
-If you prefer a directory-based token location:
-
-```powershell
-New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\\tokens\\oauth" | Out-Null
-Set-Content -LiteralPath "$env:USERPROFILE\\tokens\\oauth\\token" -Value "<database-access-token>" -NoNewline
-$env:ORACLE_GO_OAUTH_TOKEN_LOCATION = "$env:USERPROFILE\\tokens\\oauth"
-go run ./examples/token_authentication/oauth
-```
-
-Bash:
+File-based token location:
 
 ```bash
 export ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR="(description=(address=(protocol=tcps)(port=1522)(host=<db-host>))(connect_data=(service_name=<service-name>))(security=(ssl_server_dn_match=yes)))"
@@ -206,20 +171,20 @@ export ORACLE_GO_OAUTH_TOKEN_LOCATION="$HOME/tokens/oauth"
 go run ./examples/token_authentication/oauth
 ```
 
-If the sample connects successfully, it prints:
+If the sample connects successfully, it prints the connected database user:
 
 ```text
-Query result: OK
+Username: <database user>
 ```
 
 ## 6. Common checks when login fails
 
-- Confirm the database is configured for the external identity provider you are using.
-- Confirm the token has not expired.
-- Confirm the token is a database access token, not just a generic API token.
-- Confirm the mapped user or role exists in the database.
-- Confirm the token file contains only the token text.
-- Confirm the connect descriptor uses TCPS and the correct service name.
+- Confirm that the database is configured for the external identity provider you are using.
+- Confirm that the token has not expired.
+- Confirm that the token is a database access token, not just a generic API token.
+- Confirm that the mapped user or role exists in the database.
+- Confirm that the token file contains only the token text.
+- Confirm that the connect descriptor uses TCPS and the correct service name.
 
 ## References
 

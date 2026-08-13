@@ -54,11 +54,8 @@ import (
 )
 
 func main() {
-	// connectDescriptor := requiredEnv("ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR")
-	// tokenLocation := requiredEnv("ORACLE_GO_OAUTH_TOKEN_LOCATION")
-
-	connectDescriptor := "(description=(address=(protocol=tcps)(port=1522)(host=adb.us-phoenix-1.oraclecloud.com))(connect_data=(service_name=gebqqvpozhjbqbs_stsxlb7ientq94u1_tp.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))"
-	tokenLocation := "C:\\Users\\Fernanda Meheust\\tokens\\oauth\\token"
+	connectDescriptor := requiredEnv("ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR")
+	tokenLocation := requiredEnv("ORACLE_GO_OAUTH_TOKEN_LOCATION")
 
 	cfg := oracle.NewOracleDriverConfig()
 	cfg.ConnectDescriptor = connectDescriptor
@@ -81,11 +78,11 @@ func main() {
 	}
 
 	var result string
-	if err := db.QueryRowContext(ctx, "SELECT 'OK' FROM DUAL").Scan(&result); err != nil {
+	if err := db.QueryRowContext(ctx, "SELECT USER FROM SYS.DUAL").Scan(&result); err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Query result: %s\n", result)
+	fmt.Printf("Username: %s\n", result)
 }
 
 func requiredEnv(name string) string {

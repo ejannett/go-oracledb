@@ -78,11 +78,11 @@ func main() {
 	}
 
 	var result string
-	if err := db.QueryRowContext(ctx, "SELECT 'OK' FROM DUAL").Scan(&result); err != nil {
+	if err := db.QueryRowContext(ctx, "SELECT USER FROM SYS.DUAL").Scan(&result); err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Query result: %s\n", result)
+	fmt.Printf("Username: %s\n", result)
 }
 
 func requiredEnv(name string) string {
