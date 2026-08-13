@@ -499,4 +499,30 @@ func initMessagesEn() {
 	// Comment:  Arg[0]: operation (query|retrieve|parse)
 	message.SetString(language.English, string(ServerTimeZoneError), "Failed to %s server timezone")
 
+	// Document: No
+	// Cause:    Token-based authentication resolved an empty token value from AccessToken or TokenLocation.
+	// Action:   Provide a non-empty token directly with AccessToken or ensure the token file contains a valid token.
+	message.SetString(language.English, string(EmptyTokenError), "empty token for %s")
+
+	// Document: No
+	// Cause:    Token-based authentication requires a token location, but no token location was configured.
+	// Action:   Set TokenLocation or provide AccessToken directly.
+	message.SetString(language.English, string(MissingTokenLocationError), "missing token location")
+
+	// Document: No
+	// Cause:    A required session context string value could not be retrieved or was empty.
+	// Action:   Verify that the session context is populated with the expected value before token authentication uses it.
+	// Comment:  Arg[0]: session context property key
+	message.SetString(language.English, string(SessionContextValueRetrievalError), "failed to retrieve session context value %s")
+
+	// Document: No
+	// Cause:    The OCI private key is missing, malformed, or not a supported RSA signing key.
+	// Action:   Verify that oci_db_key.pem exists, is valid PEM/PKCS8, and contains an RSA private key.
+	message.SetString(language.English, string(InvalidPrivateKey), "invalid OCI private key")
+
+	// Document: No
+	// Cause:    The configured access token has expired according to its JWT exp claim.
+	// Action:   Generate or retrieve a fresh access token and try the connection again.
+	message.SetString(language.English, string(ExpiredToken), "configured access token has expired")
+
 }

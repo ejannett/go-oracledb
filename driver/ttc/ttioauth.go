@@ -88,11 +88,16 @@ const (
 	authClientCapabilities = "AUTH_CLIENT_CAPABILITIES"
 	authPbkdf2VgenCount    = "AUTH_PBKDF2_VGEN_COUNT"
 	authPbkdf2SderCount    = "AUTH_PBKDF2_SDER_COUNT"
-	authTokenKey           = authToken
-	authHeaderKey          = authHeader
-	authSignatureKey       = authSignature
-	driverNameDefault      = "jdbcthin"
+	driverNameDefault      = "oracledb"
 	authOraEdition         = "AUTH_ORA_EDITION"
+
+	/* TOKEN AUTHENTICATION KEYS */
+	// authToken is the TTC key used to send the bearer token itself.
+	authToken = "AUTH_TOKEN"
+	// authHeader is the TTC key used for the OCI signed header payload.
+	authHeader = "AUTH_HEADER"
+	// authSignature is the TTC key used for the OCI signature of authHeader.
+	authSignature = "AUTH_SIGNATURE"
 
 	passwordBufferLength = 2112
 	kolrugEnable         = 0x0001
@@ -421,9 +426,9 @@ func (o *oAuth) initializeLogonModeForOAUTH(luser common.B1Array, llogonMode int
 var _authPasswordKey = common.StringToB1Array(authPassword)
 var _authPbkdf2SpeedyKey = common.StringToB1Array(authPbkdf2SpeedyKey)
 var _authSesskey = common.StringToB1Array(authSesskey)
-var _authTokenKey = common.StringToB1Array(authTokenKey)
-var _authHeaderKey = common.StringToB1Array(authHeaderKey)
-var _authSignatureKey = common.StringToB1Array(authSignatureKey)
+var _authTokenKey = common.StringToB1Array(authToken)
+var _authHeaderKey = common.StringToB1Array(authHeader)
+var _authSignatureKey = common.StringToB1Array(authSignature)
 
 // Adds password-related key-value pairs to the authentication request, including encrypted password and speedy key if provided.
 func (o *oAuth) setPasswordKeyValsForOAUTH(lpassword []byte, speedyKey []byte) {

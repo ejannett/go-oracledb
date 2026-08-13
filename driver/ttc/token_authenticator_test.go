@@ -48,7 +48,7 @@ func TestGetAuthenticator_UsesTokenAuthenticatorForOCIToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAuthenticator returned error: %v", err)
 	}
-	if _, ok := authenticator.(*TokenAuthenticator); !ok {
+	if _, ok := authenticator.(*tokenAuthenticator); !ok {
 		t.Fatalf("expected TokenAuthenticator, got %T", authenticator)
 	}
 }
@@ -67,7 +67,7 @@ func TestGetAuthenticator_UsesTokenAuthenticatorForOAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAuthenticator returned error: %v", err)
 	}
-	if _, ok := authenticator.(*TokenAuthenticator); !ok {
+	if _, ok := authenticator.(*tokenAuthenticator); !ok {
 		t.Fatalf("expected TokenAuthenticator, got %T", authenticator)
 	}
 }
@@ -118,16 +118,16 @@ func TestOAuthSetTokenKeyValsForOAUTH_AddsTokenHeaderAndSignature(t *testing.T) 
 		got[common.B1ArrayToString(kv.Key)] = common.B1ArrayToString(kv.Value)
 	}
 
-	if got[authTokenKey] != "token-value" {
-		t.Fatalf("AUTH_TOKEN = %q, want token-value", got[authTokenKey])
+	if got[authToken] != "token-value" {
+		t.Fatalf("AUTH_TOKEN = %q, want token-value", got[authToken])
 	}
-	if got[authHeaderKey] != header {
-		t.Fatalf("AUTH_HEADER = %q, want %q", got[authHeaderKey], header)
+	if got[authHeader] != header {
+		t.Fatalf("AUTH_HEADER = %q, want %q", got[authHeader], header)
 	}
-	if got[authSignatureKey] == "" {
+	if got[authSignature] == "" {
 		t.Fatal("AUTH_SIGNATURE should not be empty")
 	}
-	if _, err := base64.StdEncoding.DecodeString(got[authSignatureKey]); err != nil {
+	if _, err := base64.StdEncoding.DecodeString(got[authSignature]); err != nil {
 		t.Fatalf("AUTH_SIGNATURE is not valid base64: %v", err)
 	}
 }
@@ -140,12 +140,12 @@ func TestOCITokenProviderGenerateTokenHeader(t *testing.T) {
 	sessContext := common.NewSessionContext()
 	sessionProperties := common.NewProperties[string]()
 	sessionProperties.SetProperty("REMOTE_ADDRESS", "192.0.2.10:1522")
+	sessionProperties.SetProperty("SERVICE_NAME", "freepdb1")
 	sessContext.UpdateSessionProperties(sessionProperties)
 
 	provider := ociTokenProvider{}
 
 	header, err := provider.generateTokenHeader(tokenProviderContext{
-		connectString:  "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCPS)(HOST=adb.us-phoenix-1.oraclecloud.com)(PORT=1522))(CONNECT_DATA=(SERVICE_NAME=freepdb1)))",
 		sessionContext: sessContext,
 	})
 	if err != nil {
@@ -204,8 +204,8 @@ func TestOAuthTokenProviderApplyAuthData_AddsTokenOnly(t *testing.T) {
 	}
 
 	kv := oauth.keyValList.Front().Value.(*common.KeyValue)
-	if got := common.B1ArrayToString(kv.Key); got != authTokenKey {
-		t.Fatalf("unexpected key %q, want %q", got, authTokenKey)
+	if got := common.B1ArrayToString(kv.Key); got != authToken {
+		t.Fatalf("unexpected key %q, want %q", got, authToken)
 	}
 	if got := common.B1ArrayToString(kv.Value); got != "token-value" {
 		t.Fatalf("unexpected value %q, want %q", got, "token-value")

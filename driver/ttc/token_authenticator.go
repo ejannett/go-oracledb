@@ -16,7 +16,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,12 +26,6 @@ import (
 )
 
 const (
-	// authToken is the TTC key used to send the bearer token itself.
-	authToken = "AUTH_TOKEN"
-	// authHeader is the TTC key used for the OCI signed header payload.
-	authHeader = "AUTH_HEADER"
-	// authSignature is the TTC key used for the OCI signature of authHeader.
-	authSignature = "AUTH_SIGNATURE"
 	// tokenFileName is the default token file name used in token directories.
 	tokenFileName = "token"
 	// ociPrivateKeyFileName is the OCI database private key file name used for
@@ -56,10 +49,10 @@ type tokenProvider interface {
 	applyAuthData(oauthPacket *oAuth, token string, ctx tokenProviderContext) error
 }
 
-// TokenAuthenticator performs the common TTC OAUTH login roundtrip for
+// tokenAuthenticator performs the common TTC OAUTH login roundtrip for
 // token-based authentication and delegates provider-specific behavior to a
 // tokenProvider implementation.
-type TokenAuthenticator struct {
+type tokenAuthenticator struct {
 	tokenAuthentication common.TokenAuthenticationType
 	accessToken         string
 	tokenLocation       string
@@ -76,9 +69,9 @@ type oauthTokenProvider struct{}
 // NewTokenAuthenticator creates a token authenticator for the configured token
 // authentication mode. If accessToken is non-empty it is used directly;
 // otherwise the authenticator reads the token from tokenLocation.
-func NewTokenAuthenticator(tokenAuthentication common.TokenAuthenticationType, accessToken, tokenLocation, connectString string) *TokenAuthenticator {
+func NewTokenAuthenticator(tokenAuthentication common.TokenAuthenticationType, accessToken, tokenLocation, connectString string) *tokenAuthenticator {
 	normalizedAuth := common.TokenAuthenticationType(strings.ToUpper(strings.TrimSpace(tokenAuthentication.String())))
-	return &TokenAuthenticator{
+	return &tokenAuthenticator{
 		tokenAuthentication: normalizedAuth,
 		accessToken:         strings.TrimSpace(accessToken),
 		tokenLocation:       strings.TrimSpace(tokenLocation),
@@ -102,22 +95,28 @@ func newTokenProvider(tokenAuthentication common.TokenAuthenticationType) tokenP
 
 // SetShelf assigns the TTC shelf used to create and stream authentication
 // messages.
-func (ta *TokenAuthenticator) SetShelf(shelf *ttiShelf[common.MessageType]) {
+func (ta *tokenAuthenticator) SetShelf(shelf *ttiShelf[common.MessageType]) {
 	ta.shelf = *shelf
 }
 
 // SetSessionContext assigns the session context used to persist properties
 // returned by the server and to expose live network metadata to providers.
-func (ta *TokenAuthenticator) SetSessionContext(sessCtx *common.SessionContext) {
+func (ta *tokenAuthenticator) SetSessionContext(sessCtx *common.SessionContext) {
 	ta.sessionContext = sessCtx
 }
 
 // Authenticate validates the configured token and performs the TTC OAUTH
 // authentication exchange with the server.
-func (ta *TokenAuthenticator) Authenticate(ctx context.Context) error {
+func (ta *tokenAuthenticator) Authenticate(ctx context.Context) error {
 	common.Odl.Debug("Start TOKEN authentication")
 	if ta.provider == nil {
 		return common.NewOracleError(common.NoAuthenticatorError, nil, ta.tokenAuthentication)
+	}
+
+	// Make sure that the session context has been set.
+	if ta.sessionContext == nil {
+		common.Odl.Debug("Missing session context")
+		return common.NewOracleError(common.InternalError, nil)
 	}
 
 	token, err := ta.resolveAccessToken()
@@ -134,22 +133,22 @@ func (ta *TokenAuthenticator) Authenticate(ctx context.Context) error {
 // doOAuth builds and sends the TTC OAUTH message, then processes the server's
 // authentication reply and updates the session context with returned
 // connection properties.
-func (ta *TokenAuthenticator) doOAuth(ctx context.Context, token string) error {
+func (ta *tokenAuthenticator) doOAuth(ctx context.Context, token string) error {
 	shelf := ta.shelf
 	streamer := shelf.GetMessageStreamer().(MessageStreamerInterface)
 
-	oauthMsg, err := shelf.GetMessageFactory().(Factory).GetMessageForFunction(TTIFUN, oauth)
+	msg, err := shelf.GetMessageFactory().(Factory).GetMessageForFunction(TTIFUN, oauth)
 	if err != nil {
 		return common.NewOracleError(common.AuthenticatorError, err, nil)
 	}
 
-	oauthPacket := oauthMsg.(*oAuth)
-	oauthPacket.setConnectString(ta.connectString)
-	oauthPacket.setLogonMode(ta.provider.logonMode())
-	if err := oauthPacket.prepareForTokenOAUTH(common.B1Array{}); err != nil {
+	oauthMsg := msg.(*oAuth)
+	oauthMsg.setConnectString(ta.connectString)
+	oauthMsg.setLogonMode(ta.provider.logonMode())
+	if err := oauthMsg.prepareForTokenOAUTH(common.B1Array{}); err != nil {
 		return common.NewOracleError(common.AuthenticatorError, err, nil)
 	}
-	if err := ta.provider.applyAuthData(oauthPacket, token, tokenProviderContext{
+	if err := ta.provider.applyAuthData(oauthMsg, token, tokenProviderContext{
 		connectString:  ta.connectString,
 		sessionContext: ta.sessionContext,
 		tokenLocation:  ta.tokenLocation,
@@ -157,7 +156,7 @@ func (ta *TokenAuthenticator) doOAuth(ctx context.Context, token string) error {
 		return common.NewOracleError(common.AuthenticatorError, err, nil)
 	}
 
-	if err := streamer.Push(ctx, oauthMsg); err != nil {
+	if err := streamer.Push(ctx, msg); err != nil {
 		return common.NewOracleError(common.AuthenticatorError, err, nil)
 	}
 	if err := streamer.Flush(ctx); err != nil {
@@ -170,12 +169,6 @@ func (ta *TokenAuthenticator) doOAuth(ctx context.Context, token string) error {
 	streamer.RegisterPreUnmarshallCallback(TTIRPA, oauthRPACallBack)
 	defer streamer.UnRegisterPreUnmarshallCallback(TTIRPA)
 
-	oerCallback := func(t *messageHeader) (common.Message[common.MessageType], error) {
-		return shelf.GetMessageFactory().(Factory).GetMessage(TTIOER)
-	}
-	streamer.RegisterPreUnmarshallCallback(TTIOER, oerCallback)
-	defer streamer.UnRegisterPreUnmarshallCallback(TTIOER)
-
 	var oauthrpa *OAuthRPA
 	for {
 		msg, err := streamer.Pull(ctx, TTIRPA, TTIOER, TTIWRN)
@@ -185,7 +178,6 @@ func (ta *TokenAuthenticator) doOAuth(ctx context.Context, token string) error {
 		switch msg.GetMsgCode() {
 		case TTIRPA:
 			oauthrpa = msg.(*OAuthRPA)
-			common.Odl.Debug("Authenticator:", "oAuth-RPA", oauthrpa)
 		case TTIOER:
 			ttioer := msg.(tTIOerIface)
 			if err := ttioer.getError(); err != nil {
@@ -194,6 +186,7 @@ func (ta *TokenAuthenticator) doOAuth(ctx context.Context, token string) error {
 			if oauthrpa == nil {
 				return common.NewOracleError(common.InternalError, nil, nil)
 			}
+			// Only update session properties if authentication succeeded
 			ta.sessionContext.UpdateSessionProperties(oauthrpa.connectionValues)
 			return nil
 		case TTIWRN:
@@ -206,7 +199,7 @@ func (ta *TokenAuthenticator) doOAuth(ctx context.Context, token string) error {
 
 // resolveAccessToken returns the configured access token directly when present,
 // otherwise it reads the token from the provider-resolved token location.
-func (ta *TokenAuthenticator) resolveAccessToken() (string, error) {
+func (ta *tokenAuthenticator) resolveAccessToken() (string, error) {
 	if ta.accessToken != "" {
 		return ta.accessToken, nil
 	}
@@ -222,7 +215,7 @@ func (ta *TokenAuthenticator) resolveAccessToken() (string, error) {
 	}
 	token := strings.TrimSpace(string(tokenBytes))
 	if token == "" {
-		return "", errors.New("empty token file")
+		return "", common.NewOracleError(common.EmptyTokenError, nil, ta.String())
 	}
 	return token, nil
 }
@@ -282,21 +275,13 @@ func (oauthTokenProvider) applyAuthData(oauthPacket *oAuth, token string, _ toke
 // generateTokenHeader builds the OCI signed header using the service name and
 // the connected remote network endpoint.
 func (provider ociTokenProvider) generateTokenHeader(ctx tokenProviderContext) (string, error) {
-	serviceName, err := extractServiceName(ctx.connectString)
+	serviceName, err := getRequiredSessionProperty(ctx.sessionContext, "SERVICE_NAME")
 	if err != nil {
 		return "", err
 	}
-	if ctx.sessionContext == nil {
-		return "", errors.New("missing session context")
-	}
-	remoteAddrValue := ctx.sessionContext.GetSessionProperties().GetProperty("REMOTE_ADDRESS")
-	remoteAddr, ok := remoteAddrValue.(string)
-	if !ok {
-		return "", errors.New("missing remote address")
-	}
-	remoteAddr = strings.TrimSpace(remoteAddr)
-	if remoteAddr == "" {
-		return "", errors.New("missing remote address")
+	remoteAddr, err := getRequiredSessionProperty(ctx.sessionContext, "REMOTE_ADDRESS")
+	if err != nil {
+		return "", err
 	}
 	return fmt.Sprintf(
 		"date: %s\n(request-target): %s\nhost: %s",
@@ -304,6 +289,20 @@ func (provider ociTokenProvider) generateTokenHeader(ctx tokenProviderContext) (
 		serviceName,
 		remoteAddr,
 	), nil
+}
+
+// getRequiredSessionProperty retrieves a non-empty string property from the
+// session context or returns the supplied driver error code.
+func getRequiredSessionProperty(sessionContext *common.SessionContext, key string) (string, error) {
+	value, ok := sessionContext.GetSessionProperties().GetProperty(key).(string)
+	if !ok {
+		return "", common.NewOracleError(common.SessionContextValueRetrievalError, nil, key)
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", common.NewOracleError(common.SessionContextValueRetrievalError, nil, key)
+	}
+	return value, nil
 }
 
 // resolveTokenDirectory resolves a token directory from either an explicit
@@ -333,7 +332,7 @@ func resolveTokenDirectory(tokenLocation, defaultRelativePath string) (string, e
 // token.
 func resolveTokenLocation(tokenLocation string) (string, error) {
 	if strings.TrimSpace(tokenLocation) == "" {
-		return "", errors.New("missing token location")
+		return "", common.NewOracleError(common.MissingTokenLocationError, nil)
 	}
 	info, err := os.Stat(tokenLocation)
 	if err != nil {
@@ -356,13 +355,14 @@ func resolveOCIPrivateKeyPath(tokenLocation string) (string, error) {
 }
 
 // String returns a short diagnostic description of the token authenticator.
-func (ta *TokenAuthenticator) String() string {
+func (ta *tokenAuthenticator) String() string {
 	return fmt.Sprintf("TokenAuthenticator{tokenAuthentication=%s, tokenLocation=%s}", ta.tokenAuthentication, ta.tokenLocation)
 }
 
 // extractServiceName returns SERVICE_NAME from an Oracle connect descriptor.
 func extractServiceName(connectString string) (string, error) {
 	common.Odl.Debug("ConnectionString", "connectString", connectString)
+	// TODO: check if service name is present in session context
 	return extractAddressValue(connectString, "SERVICE_NAME")
 }
 
@@ -391,7 +391,7 @@ func readOCIPrivateKey(path string) (crypto.Signer, error) {
 	}
 	block, _ := pem.Decode(keyPEM)
 	if block == nil {
-		return nil, errors.New("invalid PEM private key")
+		return nil, common.NewOracleError(common.InvalidPrivateKey, nil)
 	}
 	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
@@ -399,10 +399,10 @@ func readOCIPrivateKey(path string) (crypto.Signer, error) {
 	}
 	signer, ok := key.(crypto.Signer)
 	if !ok {
-		return nil, errors.New("private key does not implement crypto.Signer")
+		return nil, common.NewOracleError(common.InvalidPrivateKey, nil)
 	}
 	if _, ok := signer.(*rsa.PrivateKey); !ok {
-		return nil, errors.New("OCI token authentication requires an RSA private key")
+		return nil, common.NewOracleError(common.InvalidPrivateKey, nil)
 	}
 	return signer, nil
 }
@@ -428,7 +428,7 @@ func validateJWTExpiration(token string) error {
 		return nil
 	}
 	if time.Unix(*claims.Exp, 0).Before(time.Now()) {
-		return errors.New("configured access token has expired")
+		return common.NewOracleError(common.ExpiredToken, nil)
 	}
 	return nil
 }
