@@ -27,30 +27,59 @@ import (
 )
 
 const (
-	tokenAuthenticationOCI = "OCI_TOKEN"
-	authToken              = "AUTH_TOKEN"
-	authHeader             = "AUTH_HEADER"
-	authSignature          = "AUTH_SIGNATURE"
-	ociTokenFileName       = "token"
-	ociPrivateKeyFileName  = "oci_db_key.pem"
+	authToken             = "AUTH_TOKEN"
+	authHeader            = "AUTH_HEADER"
+	authSignature         = "AUTH_SIGNATURE"
+	tokenFileName         = "token"
+	ociPrivateKeyFileName = "oci_db_key.pem"
 )
+
+type tokenProviderContext struct {
+	connectString  string
+	sessionContext *common.SessionContext
+	tokenLocation  string
+}
+
+type tokenProvider interface {
+	logonMode() int64
+	resolveTokenPath(tokenLocation string) (string, error)
+	applyAuthData(oauthPacket *oAuth, token string, ctx tokenProviderContext) error
+}
 
 type TokenAuthenticator struct {
 	username            common.B1Array
-	tokenAuthentication string
+	tokenAuthentication common.TokenAuthenticationType
+	accessToken         string
 	tokenLocation       string
 	connectString       string
-	logonMode           int64
+	provider            tokenProvider
 	shelf               ttiShelf[common.MessageType]
 	sessionContext      *common.SessionContext
 }
 
-func NewTokenAuthenticator(tokenAuthentication, tokenLocation, connectString string) *TokenAuthenticator {
+type ociTokenProvider struct{}
+
+type oauthTokenProvider struct{}
+
+func NewTokenAuthenticator(tokenAuthentication common.TokenAuthenticationType, accessToken, tokenLocation, connectString string) *TokenAuthenticator {
+	normalizedAuth := common.TokenAuthenticationType(strings.ToUpper(strings.TrimSpace(tokenAuthentication.String())))
 	return &TokenAuthenticator{
-		tokenAuthentication: strings.ToUpper(strings.TrimSpace(tokenAuthentication)),
+		tokenAuthentication: normalizedAuth,
+		accessToken:         strings.TrimSpace(accessToken),
 		tokenLocation:       strings.TrimSpace(tokenLocation),
 		connectString:       connectString,
-		logonMode:           0x20000001,
+		provider:            newTokenProvider(normalizedAuth),
+	}
+}
+
+func newTokenProvider(tokenAuthentication common.TokenAuthenticationType) tokenProvider {
+	switch common.TokenAuthenticationType(strings.ToUpper(strings.TrimSpace(tokenAuthentication.String()))) {
+	case common.TokenAuthenticationOCI:
+		return ociTokenProvider{}
+	case common.TokenAuthenticationOAuth:
+		return oauthTokenProvider{}
+	default:
+		return nil
 	}
 }
 
@@ -64,36 +93,22 @@ func (ta *TokenAuthenticator) SetSessionContext(sessCtx *common.SessionContext) 
 
 func (ta *TokenAuthenticator) Authenticate(ctx context.Context) error {
 	common.Odl.Debug("Start TOKEN authentication")
-	if ta.tokenAuthentication != tokenAuthenticationOCI {
+	if ta.provider == nil {
 		return common.NewOracleError(common.NoAuthenticatorError, nil, ta.tokenAuthentication)
 	}
 
-	tokenPath, err := ta.resolveTokenDirectory()
+	token, err := ta.resolveAccessToken()
 	if err != nil {
 		return common.NewOracleError(common.AuthenticatorError, err, nil)
-	}
-
-	tokenBytes, err := os.ReadFile(filepath.Join(tokenPath, ociTokenFileName))
-	if err != nil {
-		return common.NewOracleError(common.AuthenticatorError, err, nil)
-	}
-	token := strings.TrimSpace(string(tokenBytes))
-	if token == "" {
-		return common.NewOracleError(common.AuthenticatorError, nil, "empty token file")
 	}
 	if err := validateJWTExpiration(token); err != nil {
 		return common.NewOracleError(common.AuthenticatorError, err, nil)
 	}
 
-	signer, err := readOCIPrivateKey(filepath.Join(tokenPath, ociPrivateKeyFileName))
-	if err != nil {
-		return common.NewOracleError(common.AuthenticatorError, err, nil)
-	}
-
-	return ta.doOAuth(ctx, token, signer)
+	return ta.doOAuth(ctx, token)
 }
 
-func (ta *TokenAuthenticator) doOAuth(ctx context.Context, token string, signer crypto.Signer) error {
+func (ta *TokenAuthenticator) doOAuth(ctx context.Context, token string) error {
 	shelf := ta.shelf
 	streamer := shelf.GetMessageStreamer().(MessageStreamerInterface)
 
@@ -104,15 +119,15 @@ func (ta *TokenAuthenticator) doOAuth(ctx context.Context, token string, signer 
 
 	oauthPacket := oauthMsg.(*oAuth)
 	oauthPacket.setConnectString(ta.connectString)
-	oauthPacket.setLogonMode(ta.logonMode)
+	oauthPacket.setLogonMode(ta.provider.logonMode())
 	if err := oauthPacket.prepareForTokenOAUTH(ta.username); err != nil {
 		return common.NewOracleError(common.AuthenticatorError, err, nil)
 	}
-	header, err := ta.generateTokenHeader()
-	if err != nil {
-		return common.NewOracleError(common.AuthenticatorError, err, nil)
-	}
-	if err := oauthPacket.setTokenKeyValsForOAUTH(token, header, signer); err != nil {
+	if err := ta.provider.applyAuthData(oauthPacket, token, tokenProviderContext{
+		connectString:  ta.connectString,
+		sessionContext: ta.sessionContext,
+		tokenLocation:  ta.tokenLocation,
+	}); err != nil {
 		return common.NewOracleError(common.AuthenticatorError, err, nil)
 	}
 
@@ -163,38 +178,131 @@ func (ta *TokenAuthenticator) doOAuth(ctx context.Context, token string, signer 
 	}
 }
 
-func (ta *TokenAuthenticator) resolveTokenDirectory() (string, error) {
-	if ta.tokenLocation != "" {
-		info, err := os.Stat(ta.tokenLocation)
-		if err != nil {
-			return "", err
-		}
-		if info.IsDir() {
-			return ta.tokenLocation, nil
-		}
-		return filepath.Dir(ta.tokenLocation), nil
+func (ta *TokenAuthenticator) resolveAccessToken() (string, error) {
+	if ta.accessToken != "" {
+		return ta.accessToken, nil
 	}
 
-	homeDir, err := os.UserHomeDir()
+	tokenPath, err := ta.provider.resolveTokenPath(ta.tokenLocation)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(homeDir, ".oci", "db-token"), nil
+
+	tokenBytes, err := os.ReadFile(tokenPath)
+	if err != nil {
+		return "", err
+	}
+	token := strings.TrimSpace(string(tokenBytes))
+	if token == "" {
+		return "", errors.New("empty token file")
+	}
+	return token, nil
 }
 
-func (ta *TokenAuthenticator) generateTokenHeader() (string, error) {
-	serviceName, err := extractServiceName(ta.connectString)
+func (provider ociTokenProvider) logonMode() int64 {
+	return 0x20000001
+}
+
+func (oauthTokenProvider) logonMode() int64 {
+	return 0
+}
+
+func (provider ociTokenProvider) resolveTokenPath(tokenLocation string) (string, error) {
+	tokenDir, err := resolveTokenDirectory(tokenLocation, filepath.Join(".oci", "db-token"))
 	if err != nil {
 		return "", err
 	}
-	remoteAddr := ta.sessionContext.GetSessionProperties().GetProperty("REMOTE_ADDRESS")
+	return filepath.Join(tokenDir, tokenFileName), nil
+}
 
+func (oauthTokenProvider) resolveTokenPath(tokenLocation string) (string, error) {
+	return resolveTokenLocation(tokenLocation)
+}
+
+func (provider ociTokenProvider) applyAuthData(oauthPacket *oAuth, token string, ctx tokenProviderContext) error {
+	header, err := provider.generateTokenHeader(ctx)
+	if err != nil {
+		return err
+	}
+	keyPath, err := resolveOCIPrivateKeyPath(ctx.tokenLocation)
+	if err != nil {
+		return err
+	}
+	signer, err := readOCIPrivateKey(keyPath)
+	if err != nil {
+		return err
+	}
+	return oauthPacket.setTokenKeyValsForOAUTH(token, header, signer)
+}
+
+func (oauthTokenProvider) applyAuthData(oauthPacket *oAuth, token string, _ tokenProviderContext) error {
+	return oauthPacket.setTokenKeyValsForOAUTH(token, "", nil)
+}
+
+func (provider ociTokenProvider) generateTokenHeader(ctx tokenProviderContext) (string, error) {
+	serviceName, err := extractServiceName(ctx.connectString)
+	if err != nil {
+		return "", err
+	}
+	if ctx.sessionContext == nil {
+		return "", errors.New("missing session context")
+	}
+	remoteAddrValue := ctx.sessionContext.GetSessionProperties().GetProperty("REMOTE_ADDRESS")
+	remoteAddr, ok := remoteAddrValue.(string)
+	if !ok {
+		return "", errors.New("missing remote address")
+	}
+	remoteAddr = strings.TrimSpace(remoteAddr)
+	if remoteAddr == "" {
+		return "", errors.New("missing remote address")
+	}
 	return fmt.Sprintf(
 		"date: %s\n(request-target): %s\nhost: %s",
 		time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT"),
 		serviceName,
 		remoteAddr,
 	), nil
+}
+
+func resolveTokenDirectory(tokenLocation, defaultRelativePath string) (string, error) {
+	if tokenLocation != "" {
+		info, err := os.Stat(tokenLocation)
+		if err != nil {
+			return "", err
+		}
+		if info.IsDir() {
+			return tokenLocation, nil
+		}
+		return filepath.Dir(tokenLocation), nil
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(homeDir, defaultRelativePath), nil
+}
+
+func resolveTokenLocation(tokenLocation string) (string, error) {
+	if strings.TrimSpace(tokenLocation) == "" {
+		return "", errors.New("missing token location")
+	}
+	info, err := os.Stat(tokenLocation)
+	if err != nil {
+		return "", err
+	}
+	if info.IsDir() {
+		return filepath.Join(tokenLocation, tokenFileName), nil
+	}
+	return tokenLocation, nil
+}
+
+func resolveOCIPrivateKeyPath(tokenLocation string) (string, error) {
+	tokenDir, err := resolveTokenDirectory(tokenLocation, filepath.Join(".oci", "db-token"))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(tokenDir, ociPrivateKeyFileName), nil
 }
 
 func (ta *TokenAuthenticator) String() string {

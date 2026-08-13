@@ -38,7 +38,7 @@ func TestGetAuthenticator_UsesTokenAuthenticatorForOCIToken(t *testing.T) {
 	t.Parallel()
 
 	cfg := common.NewOracleDriverConfig()
-	cfg.Credentials.TokenAuthentication = tokenAuthenticationOCI
+	cfg.Credentials.TokenAuthentication = common.TokenAuthenticationOCI
 	cfg.Credentials.TokenLocation = t.TempDir()
 	cfg.ConnectDescriptor = "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCPS)(HOST=127.0.0.1)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=freepdb1)))"
 
@@ -51,20 +51,36 @@ func TestGetAuthenticator_UsesTokenAuthenticatorForOCIToken(t *testing.T) {
 	}
 }
 
-func TestTokenAuthenticatorResolveTokenDirectory_Default(t *testing.T) {
+func TestGetAuthenticator_UsesTokenAuthenticatorForOAuth(t *testing.T) {
+	t.Parallel()
+
+	cfg := common.NewOracleDriverConfig()
+	cfg.Credentials.TokenAuthentication = common.TokenAuthenticationOAuth
+	cfg.Credentials.TokenLocation = filepath.Join(t.TempDir(), "token")
+	cfg.ConnectDescriptor = "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCPS)(HOST=127.0.0.1)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=freepdb1)))"
+
+	authenticator, err := GetAuthenticator(cfg)
+	if err != nil {
+		t.Fatalf("GetAuthenticator returned error: %v", err)
+	}
+	if _, ok := authenticator.(*TokenAuthenticator); !ok {
+		t.Fatalf("expected TokenAuthenticator, got %T", authenticator)
+	}
+}
+
+func TestOCITokenProviderResolveTokenPath_Default(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("USERPROFILE", homeDir)
 	t.Setenv("HOME", homeDir)
 
-	authenticator := NewTokenAuthenticator(tokenAuthenticationOCI, "", "")
-	got, err := authenticator.resolveTokenDirectory()
+	got, err := (ociTokenProvider{}).resolveTokenPath("")
 	if err != nil {
-		t.Fatalf("resolveTokenDirectory returned error: %v", err)
+		t.Fatalf("resolveTokenPath returned error: %v", err)
 	}
 
-	want := filepath.Join(homeDir, ".oci", "db-token")
+	want := filepath.Join(homeDir, ".oci", "db-token", tokenFileName)
 	if got != want {
-		t.Fatalf("resolveTokenDirectory = %q, want %q", got, want)
+		t.Fatalf("resolveTokenPath = %q, want %q", got, want)
 	}
 }
 
@@ -107,7 +123,7 @@ func TestOAuthSetTokenKeyValsForOAUTH_AddsTokenHeaderAndSignature(t *testing.T) 
 	}
 }
 
-func TestTokenAuthenticatorGenerateTokenHeader(t *testing.T) {
+func TestOCITokenProviderGenerateTokenHeader(t *testing.T) {
 	t.Parallel()
 
 	sessContext := common.NewSessionContext()
@@ -115,10 +131,12 @@ func TestTokenAuthenticatorGenerateTokenHeader(t *testing.T) {
 	sessionProperties.SetProperty("REMOTE_ADDRESS", "192.0.2.10:1522")
 	sessContext.UpdateSessionProperties(sessionProperties)
 
-	authenticator := NewTokenAuthenticator(tokenAuthenticationOCI, "", "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCPS)(HOST=adb.us-phoenix-1.oraclecloud.com)(PORT=1522))(CONNECT_DATA=(SERVICE_NAME=freepdb1)))")
-	authenticator.SetSessionContext(sessContext)
+	provider := ociTokenProvider{}
 
-	header, err := authenticator.generateTokenHeader()
+	header, err := provider.generateTokenHeader(tokenProviderContext{
+		connectString:  "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCPS)(HOST=adb.us-phoenix-1.oraclecloud.com)(PORT=1522))(CONNECT_DATA=(SERVICE_NAME=freepdb1)))",
+		sessionContext: sessContext,
+	})
 	if err != nil {
 		t.Fatalf("generateTokenHeader returned error: %v", err)
 	}
@@ -136,6 +154,79 @@ func TestTokenAuthenticatorGenerateTokenHeader(t *testing.T) {
 	}
 	if strings.Contains(header, " UTC\n(request-target): ") {
 		t.Fatalf("header date should not use UTC label: %q", header)
+	}
+}
+
+func TestOAuthTokenProviderResolveTokenPath_File(t *testing.T) {
+	t.Parallel()
+
+	tokenFile := filepath.Join(t.TempDir(), "jwtbearertoken")
+	if err := os.WriteFile(tokenFile, []byte("token-value"), 0600); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	got, err := (oauthTokenProvider{}).resolveTokenPath(tokenFile)
+	if err != nil {
+		t.Fatalf("resolveTokenPath returned error: %v", err)
+	}
+	if got != tokenFile {
+		t.Fatalf("resolveTokenPath = %q, want %q", got, tokenFile)
+	}
+}
+
+func TestOAuthTokenProviderApplyAuthData_AddsTokenOnly(t *testing.T) {
+	t.Parallel()
+
+	oauth := NewOAuth().(*oAuth)
+	oauth.keyValList = NewKeyValueList()
+
+	if err := (oauthTokenProvider{}).applyAuthData(oauth, "token-value", tokenProviderContext{}); err != nil {
+		t.Fatalf("applyAuthData returned error: %v", err)
+	}
+
+	if oauth.keyValList.Len() != 1 {
+		t.Fatalf("expected 1 key/value pair, got %d", oauth.keyValList.Len())
+	}
+
+	kv := oauth.keyValList.Front().Value.(*common.KeyValue)
+	if got := common.B1ArrayToString(kv.Key); got != authTokenKey {
+		t.Fatalf("unexpected key %q, want %q", got, authTokenKey)
+	}
+	if got := common.B1ArrayToString(kv.Value); got != "token-value" {
+		t.Fatalf("unexpected value %q, want %q", got, "token-value")
+	}
+}
+
+func TestTokenAuthenticatorResolveAccessToken_UsesConfiguredAccessToken(t *testing.T) {
+	t.Parallel()
+
+	authenticator := NewTokenAuthenticator(common.TokenAuthenticationOAuth, " direct-token ", "", "")
+
+	got, err := authenticator.resolveAccessToken()
+	if err != nil {
+		t.Fatalf("resolveAccessToken returned error: %v", err)
+	}
+	if got != "direct-token" {
+		t.Fatalf("resolveAccessToken = %q, want %q", got, "direct-token")
+	}
+}
+
+func TestTokenAuthenticatorResolveAccessToken_PrefersAccessTokenOverLocation(t *testing.T) {
+	t.Parallel()
+
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(tokenFile, []byte("file-token"), 0600); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	authenticator := NewTokenAuthenticator(common.TokenAuthenticationOAuth, "inline-token", tokenFile, "")
+
+	got, err := authenticator.resolveAccessToken()
+	if err != nil {
+		t.Fatalf("resolveAccessToken returned error: %v", err)
+	}
+	if got != "inline-token" {
+		t.Fatalf("resolveAccessToken = %q, want %q", got, "inline-token")
 	}
 }
 

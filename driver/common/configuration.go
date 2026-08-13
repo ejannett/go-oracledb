@@ -469,7 +469,9 @@ type OracleCredentials struct {
 	// Password stores the database password configuration.
 	Password string `cliVisible:"false" sensitive:"true"`
 	// TokenAuthentication selects token-based authentication.
-	TokenAuthentication string `propertyName:"token_authentication" default:"" validator:"validateTokenAuthentication" help:"selects token-based authentication such as OCI_TOKEN"`
+	TokenAuthentication TokenAuthenticationType `propertyName:"token_authentication" default:"" validator:"validateTokenAuthentication" help:"selects token-based authentication such as OCI_TOKEN"`
+	// AccessToken stores a token-based authentication token directly in memory.
+	AccessToken string `propertyName:"access_token" default:"" cliVisible:"false" sensitive:"true" help:"sets the token directly for token-based authentication instead of reading it from token_location"`
 	// TokenLocation points to a token file or token directory used for token-based authentication.
 	TokenLocation string `propertyName:"token_location" default:"" help:"points to a token file or token directory used for token-based authentication"`
 }
@@ -1181,25 +1183,11 @@ func validateTokenAuthenticationValue(value reflect.Value, valueName string) (an
 			nil,
 			value,
 			valueName,
-			[]string{"OCI_TOKEN"},
+			allTokenAuthenticationTypeNames,
 		)
 	}
 
-	normalized := strings.TrimSpace(strings.ToUpper(value.String()))
-	if normalized == "" {
-		return "", nil
-	}
-	if normalized == "OCI_TOKEN" {
-		return normalized, nil
-	}
-
-	return nil, NewOracleError(
-		InvalidConnectionParameter,
-		nil,
-		value.String(),
-		valueName,
-		[]string{"OCI_TOKEN"},
-	)
+	return ParseTokenAuthenticationType(value.String(), valueName)
 }
 
 // validateBooleanValue normalizes a string property value into a

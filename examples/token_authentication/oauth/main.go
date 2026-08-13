@@ -36,7 +36,7 @@
 ** SOFTWARE.
  */
 
-// Package main demonstrates connecting to Oracle using OCI IAM token
+// Package main demonstrates connecting to Oracle using OAuth token
 // authentication and verifying the session with SELECT 'OK' FROM DUAL.
 package main
 
@@ -54,12 +54,15 @@ import (
 )
 
 func main() {
-	connectDescriptor := requiredEnv("ORACLE_GO_OCI_TOKEN_CONNECT_DESCRIPTOR")
-	tokenLocation := requiredEnv("ORACLE_GO_OCI_TOKEN_LOCATION")
+	// connectDescriptor := requiredEnv("ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR")
+	// tokenLocation := requiredEnv("ORACLE_GO_OAUTH_TOKEN_LOCATION")
+
+	connectDescriptor := "(description=(address=(protocol=tcps)(port=1522)(host=adb.us-phoenix-1.oraclecloud.com))(connect_data=(service_name=gebqqvpozhjbqbs_stsxlb7ientq94u1_tp.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))"
+	tokenLocation := "C:\\Users\\Fernanda Meheust\\tokens\\oauth\\token"
 
 	cfg := oracle.NewOracleDriverConfig()
 	cfg.ConnectDescriptor = connectDescriptor
-	cfg.Credentials.TokenAuthentication = common.TokenAuthenticationOCI
+	cfg.Credentials.TokenAuthentication = common.TokenAuthenticationOAuth
 	cfg.Credentials.TokenLocation = tokenLocation
 
 	connector, err := oracle.NewOracleConnector(cfg)

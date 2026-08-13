@@ -173,7 +173,7 @@ func TestDriver_Authentication_OCIToken(t *testing.T) {
 
 	cfg := NewOracleDriverConfig()
 	cfg.ConnectDescriptor = connectDescriptor
-	cfg.Credentials.TokenAuthentication = "OCI_TOKEN"
+	cfg.Credentials.TokenAuthentication = common.TokenAuthenticationOCI
 	cfg.Credentials.TokenLocation = tokenLocation
 
 	connector, err := NewOracleConnector(cfg)
@@ -195,6 +195,51 @@ func TestDriver_Authentication_OCIToken(t *testing.T) {
 		t.Fatalf("OCI token authentication query failed: %v", err)
 	}
 	if result != expectedUser {
-		t.Fatalf("unexpected OCI token authentication query result: got %q, want %q", result, "OK")
+		t.Fatalf("unexpected OCI token authentication query result: got %q, want %q", result, expectedUser)
+	}
+}
+
+// TestDriver_Authentication_OAuth verifies OAuth token authentication by
+// connecting to a Database and querying DUAL. Set
+// ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR, ORACLE_GO_OAUTH_TOKEN_LOCATION and
+// ORACLE_GO_OAUTH_EXPECTED_USER to run this integration test.
+func TestDriver_Authentication_OAuth(t *testing.T) {
+	// connectDescriptor := os.Getenv("ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR")
+	// tokenLocation := os.Getenv("ORACLE_GO_OAUTH_TOKEN_LOCATION")
+	// expectedUser := os.Getenv("ORACLE_GO_OAUTH_EXPECTED_USER")
+
+	connectDescriptor := "(description=(address=(protocol=tcps)(port=1522)(host=adb.us-phoenix-1.oraclecloud.com))(connect_data=(service_name=gebqqvpozhjbqbs_stsxlb7ientq94u1_tp.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))"
+	tokenLocation := "C:\\Users\\Fernanda Meheust\\tokens\\oauth\\token"
+	expectedUser := "AZURE_USER"
+
+	if connectDescriptor == "" || tokenLocation == "" || expectedUser == "" {
+		t.Skip("OAuth token authentication requires ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR, ORACLE_GO_OAUTH_TOKEN_LOCATION and ORACLE_GO_OAUTH_EXPECTED_USER")
+	}
+
+	cfg := NewOracleDriverConfig()
+	cfg.ConnectDescriptor = connectDescriptor
+	cfg.Credentials.TokenAuthentication = common.TokenAuthenticationOAuth
+	cfg.Credentials.TokenLocation = tokenLocation
+
+	connector, err := NewOracleConnector(cfg)
+	if err != nil {
+		t.Fatalf("failed to create OAuth token connector: %v", err)
+	}
+
+	db := sql.OpenDB(connector)
+	defer db.Close()
+
+	ctx := context.Background()
+
+	if err := db.PingContext(ctx); err != nil {
+		t.Fatalf("OAuth token authentication ping failed: %v", err)
+	}
+
+	var result string
+	if err := db.QueryRowContext(ctx, "SELECT USER FROM SYS.DUAL").Scan(&result); err != nil {
+		t.Fatalf("OAuth token authentication query failed: %v", err)
+	}
+	if result != expectedUser {
+		t.Fatalf("unexpected OAuth token authentication query result: got %q, want %q", result, expectedUser)
 	}
 }

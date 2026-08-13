@@ -228,7 +228,7 @@ func (drv *Driver) openConnector(dsn string) (driver.Connector, error) {
 
 	// question: should we force SSLServerDNMatch, or check that it has
 	// be set and return an error if it hasn't?
-	if strings.EqualFold(confToUse.Credentials.TokenAuthentication, "OCI_TOKEN") {
+	if confToUse.Credentials.TokenAuthentication == common.TokenAuthenticationOCI {
 		confToUse.ConnectionProperties.SSLServerDNMatch = true
 	}
 

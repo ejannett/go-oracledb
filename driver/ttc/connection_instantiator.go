@@ -91,7 +91,7 @@ func (connInstantiator *connectionInstantiator) GetConnection(ctx context.Contex
 	}
 
 	// Add REMOTE_ADDRESS(IP:PORT) to session properties
-	remoteAddsProperty := &common.Properties[string]{}
+	remoteAddsProperty := common.NewProperties[string]()
 	remoteAddsProperty.SetProperty("REMOTE_ADDRESS", connInstantiator.ns.GetRemoteAddress())
 	sessCtx.UpdateSessionProperties(remoteAddsProperty)
 
@@ -145,7 +145,7 @@ func GetAuthenticator(parameters *common.OracleDriverConfig) (Authenticator, err
 		return nil, common.NewOracleError(common.InternalError, nil)
 	}
 
-	if parameters.Credentials.TokenAuthentication == "OCI_TOKEN" {
+	if parameters.Credentials.TokenAuthentication.IsValid() {
 		return createTokenAuthenticator(parameters)
 	}
 
@@ -176,6 +176,7 @@ func createPasswordAuthenticator(parameters *common.OracleDriverConfig) (Authent
 func createTokenAuthenticator(parameters *common.OracleDriverConfig) (Authenticator, error) {
 	return NewTokenAuthenticator(
 		parameters.Credentials.TokenAuthentication,
+		parameters.Credentials.AccessToken,
 		parameters.Credentials.TokenLocation,
 		parameters.ConnectDescriptor,
 	), nil

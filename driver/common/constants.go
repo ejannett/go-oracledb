@@ -72,6 +72,54 @@ const (
 	ProtocolTCPS
 )
 
+type TokenAuthenticationType string
+
+const (
+	TokenAuthenticationOCI   TokenAuthenticationType = "OCI_TOKEN"
+	TokenAuthenticationOAuth TokenAuthenticationType = "OAUTH"
+)
+
+var tokenAuthenticationTypeValues = map[string]TokenAuthenticationType{
+	TokenAuthenticationOCI.String():   TokenAuthenticationOCI,
+	TokenAuthenticationOAuth.String(): TokenAuthenticationOAuth,
+}
+
+var allTokenAuthenticationTypeNames = slices.Collect(func(yield func(string) bool) {
+	for k := range tokenAuthenticationTypeValues {
+		if !yield(k) {
+			return
+		}
+	}
+})
+
+func (t TokenAuthenticationType) String() string {
+	return string(t)
+}
+
+func ParseTokenAuthenticationType(value, valueName string) (TokenAuthenticationType, error) {
+	normalized := strings.ToUpper(strings.TrimSpace(value))
+	if normalized == "" {
+		return "", nil
+	}
+
+	if tokenAuthenticationType, ok := tokenAuthenticationTypeValues[normalized]; ok {
+		return tokenAuthenticationType, nil
+	}
+
+	return "", NewOracleError(
+		InvalidConnectionParameter,
+		nil,
+		value,
+		valueName,
+		allTokenAuthenticationTypeNames,
+	)
+}
+
+func (t TokenAuthenticationType) IsValid() bool {
+	_, ok := tokenAuthenticationTypeValues[t.String()]
+	return ok
+}
+
 var protocolName = map[Protocol]string{
 	ProtocolTCP:  "TCP",
 	ProtocolTCPS: "TCPS",
