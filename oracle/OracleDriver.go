@@ -226,7 +226,7 @@ func (drv *Driver) openConnector(dsn string) (driver.Connector, error) {
 		return nil, common.NewOracleError(common.NamingDSNInvalid, validateErr, dsn)
 	}
 
-	// question: should we force SSLServerDNMatch, or check that it has
+	// Question: should we force SSLServerDNMatch, or check that it has
 	// be set and return an error if it hasn't?
 	if confToUse.Credentials.TokenAuthentication == common.TokenAuthenticationOCI {
 		confToUse.ConnectionProperties.SSLServerDNMatch = true
