@@ -204,13 +204,9 @@ func TestDriver_Authentication_OCIToken(t *testing.T) {
 // ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR, ORACLE_GO_OAUTH_TOKEN_LOCATION and
 // ORACLE_GO_OAUTH_EXPECTED_USER to run this integration test.
 func TestDriver_Authentication_OAuth(t *testing.T) {
-	// connectDescriptor := os.Getenv("ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR")
-	// tokenLocation := os.Getenv("ORACLE_GO_OAUTH_TOKEN_LOCATION")
-	// expectedUser := os.Getenv("ORACLE_GO_OAUTH_EXPECTED_USER")
-
-	connectDescriptor := "(description=(address=(protocol=tcps)(port=1522)(host=adb.us-phoenix-1.oraclecloud.com))(connect_data=(service_name=gebqqvpozhjbqbs_stsxlb7ientq94u1_tp.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))"
-	tokenLocation := "C:\\Users\\Fernanda Meheust\\tokens\\oauth\\token"
-	expectedUser := "AZURE_USER"
+	connectDescriptor := os.Getenv("ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR")
+	tokenLocation := os.Getenv("ORACLE_GO_OAUTH_TOKEN_LOCATION")
+	expectedUser := os.Getenv("ORACLE_GO_OAUTH_EXPECTED_USER")
 
 	if connectDescriptor == "" || tokenLocation == "" || expectedUser == "" {
 		t.Skip("OAuth token authentication requires ORACLE_GO_OAUTH_CONNECT_DESCRIPTOR, ORACLE_GO_OAUTH_TOKEN_LOCATION and ORACLE_GO_OAUTH_EXPECTED_USER")

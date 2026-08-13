@@ -383,7 +383,7 @@ func (o *oAuth) prepareForOAUTH(luser common.B1Array,
 	lpassword []byte,
 	speedyKey []byte) error {
 
-	if (lpassword == nil || len(lpassword) == 0) && !_isPrivilegedLogon(o.logonMode) {
+	if len(lpassword) == 0 && !_isPrivilegedLogon(o.logonMode) {
 		return common.NewOracleError(common.InvalidCredential, nil, "empty password for non privileged logon")
 	}
 
@@ -440,6 +440,16 @@ func (o *oAuth) setPasswordKeyValsForOAUTH(lpassword []byte, speedyKey []byte) {
 	}
 }
 
+// setTokenKeyValsForOAUTH adds token-based authentication key/value pairs to
+// the OAUTH TTC message.
+//
+// For generic OAuth bearer-token authentication, only AUTH_TOKEN is sent and
+// signer must be nil.
+//
+// For OCI IAM token authentication, AUTH_TOKEN is sent together with
+// AUTH_HEADER and AUTH_SIGNATURE. In that case header contains the OCI signed
+// header payload and signer is the OCI database private key used to generate
+// AUTH_SIGNATURE.
 func (o *oAuth) setTokenKeyValsForOAUTH(token string, header string, signer crypto.Signer) error {
 	o.keyValList.PushBack(&common.KeyValue{
 		Key:   _authTokenKey,

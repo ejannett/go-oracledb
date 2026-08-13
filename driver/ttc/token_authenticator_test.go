@@ -34,6 +34,8 @@ func (m *mockTokenConn) RemoteAddr() net.Addr {
 	return addr
 }
 
+// TestGetAuthenticator_UsesTokenAuthenticatorForOCIToken verifies that an
+// OCI token authentication configuration selects TokenAuthenticator.
 func TestGetAuthenticator_UsesTokenAuthenticatorForOCIToken(t *testing.T) {
 	t.Parallel()
 
@@ -51,6 +53,8 @@ func TestGetAuthenticator_UsesTokenAuthenticatorForOCIToken(t *testing.T) {
 	}
 }
 
+// TestGetAuthenticator_UsesTokenAuthenticatorForOAuth verifies that a generic
+// OAuth token authentication configuration selects TokenAuthenticator.
 func TestGetAuthenticator_UsesTokenAuthenticatorForOAuth(t *testing.T) {
 	t.Parallel()
 
@@ -68,6 +72,8 @@ func TestGetAuthenticator_UsesTokenAuthenticatorForOAuth(t *testing.T) {
 	}
 }
 
+// TestOCITokenProviderResolveTokenPath_Default verifies that the OCI token
+// provider falls back to the default ~/.oci/db-token/token location.
 func TestOCITokenProviderResolveTokenPath_Default(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("USERPROFILE", homeDir)
@@ -84,6 +90,9 @@ func TestOCITokenProviderResolveTokenPath_Default(t *testing.T) {
 	}
 }
 
+// TestOAuthSetTokenKeyValsForOAUTH_AddsTokenHeaderAndSignature verifies that
+// token authentication with an OCI signer adds AUTH_TOKEN, AUTH_HEADER and
+// AUTH_SIGNATURE key/value pairs.
 func TestOAuthSetTokenKeyValsForOAUTH_AddsTokenHeaderAndSignature(t *testing.T) {
 	t.Parallel()
 
@@ -123,6 +132,8 @@ func TestOAuthSetTokenKeyValsForOAUTH_AddsTokenHeaderAndSignature(t *testing.T) 
 	}
 }
 
+// TestOCITokenProviderGenerateTokenHeader verifies that the OCI provider builds
+// a signed header using the service name, remote IP:port and a GMT date label.
 func TestOCITokenProviderGenerateTokenHeader(t *testing.T) {
 	t.Parallel()
 
@@ -157,6 +168,8 @@ func TestOCITokenProviderGenerateTokenHeader(t *testing.T) {
 	}
 }
 
+// TestOAuthTokenProviderResolveTokenPath_File verifies that the generic OAuth
+// provider accepts a direct token file path.
 func TestOAuthTokenProviderResolveTokenPath_File(t *testing.T) {
 	t.Parallel()
 
@@ -174,6 +187,8 @@ func TestOAuthTokenProviderResolveTokenPath_File(t *testing.T) {
 	}
 }
 
+// TestOAuthTokenProviderApplyAuthData_AddsTokenOnly verifies that generic
+// OAuth authentication adds only AUTH_TOKEN and omits OCI-only signed fields.
 func TestOAuthTokenProviderApplyAuthData_AddsTokenOnly(t *testing.T) {
 	t.Parallel()
 
@@ -197,6 +212,9 @@ func TestOAuthTokenProviderApplyAuthData_AddsTokenOnly(t *testing.T) {
 	}
 }
 
+// TestTokenAuthenticatorResolveAccessToken_UsesConfiguredAccessToken verifies
+// that a configured in-memory access token is returned without using
+// token_location.
 func TestTokenAuthenticatorResolveAccessToken_UsesConfiguredAccessToken(t *testing.T) {
 	t.Parallel()
 
@@ -211,6 +229,9 @@ func TestTokenAuthenticatorResolveAccessToken_UsesConfiguredAccessToken(t *testi
 	}
 }
 
+// TestTokenAuthenticatorResolveAccessToken_PrefersAccessTokenOverLocation
+// verifies that AccessToken takes precedence when both AccessToken and
+// TokenLocation are configured.
 func TestTokenAuthenticatorResolveAccessToken_PrefersAccessTokenOverLocation(t *testing.T) {
 	t.Parallel()
 
@@ -230,6 +251,8 @@ func TestTokenAuthenticatorResolveAccessToken_PrefersAccessTokenOverLocation(t *
 	}
 }
 
+// TestValidateJWTExpiration_Expired verifies that an expired JWT token is
+// rejected when it contains an exp claim in the past.
 func TestValidateJWTExpiration_Expired(t *testing.T) {
 	t.Parallel()
 

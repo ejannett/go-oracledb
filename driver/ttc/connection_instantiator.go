@@ -90,6 +90,7 @@ func (connInstantiator *connectionInstantiator) GetConnection(ctx context.Contex
 		return nil, connInstantiator.localizationService.LocalizeError(err)
 	}
 
+	// Question: Is it OK that I add the remote address as a session property?
 	// Add REMOTE_ADDRESS(IP:PORT) to session properties
 	remoteAddsProperty := common.NewProperties[string]()
 	remoteAddsProperty.SetProperty("REMOTE_ADDRESS", connInstantiator.ns.GetRemoteAddress())

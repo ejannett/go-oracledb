@@ -64,6 +64,8 @@ type NetworkSession interface {
 	// Returns: true if an inband notification has been received otherwise false.
 	CheckInbandNotification() bool
 
+	// GetRemoteAddress returns the remote network endpoint formatted as
+	// "ip:port" when it is available, or an empty string otherwise.
 	GetRemoteAddress() string
 }
 

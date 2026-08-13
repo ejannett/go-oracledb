@@ -27,27 +27,39 @@ import (
 )
 
 const (
-	authToken             = "AUTH_TOKEN"
-	authHeader            = "AUTH_HEADER"
-	authSignature         = "AUTH_SIGNATURE"
-	tokenFileName         = "token"
+	// authToken is the TTC key used to send the bearer token itself.
+	authToken = "AUTH_TOKEN"
+	// authHeader is the TTC key used for the OCI signed header payload.
+	authHeader = "AUTH_HEADER"
+	// authSignature is the TTC key used for the OCI signature of authHeader.
+	authSignature = "AUTH_SIGNATURE"
+	// tokenFileName is the default token file name used in token directories.
+	tokenFileName = "token"
+	// ociPrivateKeyFileName is the OCI database private key file name used for
+	// OCI IAM token authentication.
 	ociPrivateKeyFileName = "oci_db_key.pem"
 )
 
+// tokenProviderContext carries provider-specific inputs derived from the
+// connection configuration and live session state.
 type tokenProviderContext struct {
 	connectString  string
 	sessionContext *common.SessionContext
 	tokenLocation  string
 }
 
+// tokenProvider encapsulates the behavior that differs between token
+// authentication providers such as OCI IAM and generic OAuth.
 type tokenProvider interface {
 	logonMode() int64
 	resolveTokenPath(tokenLocation string) (string, error)
 	applyAuthData(oauthPacket *oAuth, token string, ctx tokenProviderContext) error
 }
 
+// TokenAuthenticator performs the common TTC OAUTH login roundtrip for
+// token-based authentication and delegates provider-specific behavior to a
+// tokenProvider implementation.
 type TokenAuthenticator struct {
-	username            common.B1Array
 	tokenAuthentication common.TokenAuthenticationType
 	accessToken         string
 	tokenLocation       string
@@ -61,6 +73,9 @@ type ociTokenProvider struct{}
 
 type oauthTokenProvider struct{}
 
+// NewTokenAuthenticator creates a token authenticator for the configured token
+// authentication mode. If accessToken is non-empty it is used directly;
+// otherwise the authenticator reads the token from tokenLocation.
 func NewTokenAuthenticator(tokenAuthentication common.TokenAuthenticationType, accessToken, tokenLocation, connectString string) *TokenAuthenticator {
 	normalizedAuth := common.TokenAuthenticationType(strings.ToUpper(strings.TrimSpace(tokenAuthentication.String())))
 	return &TokenAuthenticator{
@@ -72,6 +87,8 @@ func NewTokenAuthenticator(tokenAuthentication common.TokenAuthenticationType, a
 	}
 }
 
+// newTokenProvider returns the provider implementation for the requested token
+// authentication type, or nil when the type is not supported.
 func newTokenProvider(tokenAuthentication common.TokenAuthenticationType) tokenProvider {
 	switch common.TokenAuthenticationType(strings.ToUpper(strings.TrimSpace(tokenAuthentication.String()))) {
 	case common.TokenAuthenticationOCI:
@@ -83,14 +100,20 @@ func newTokenProvider(tokenAuthentication common.TokenAuthenticationType) tokenP
 	}
 }
 
+// SetShelf assigns the TTC shelf used to create and stream authentication
+// messages.
 func (ta *TokenAuthenticator) SetShelf(shelf *ttiShelf[common.MessageType]) {
 	ta.shelf = *shelf
 }
 
+// SetSessionContext assigns the session context used to persist properties
+// returned by the server and to expose live network metadata to providers.
 func (ta *TokenAuthenticator) SetSessionContext(sessCtx *common.SessionContext) {
 	ta.sessionContext = sessCtx
 }
 
+// Authenticate validates the configured token and performs the TTC OAUTH
+// authentication exchange with the server.
 func (ta *TokenAuthenticator) Authenticate(ctx context.Context) error {
 	common.Odl.Debug("Start TOKEN authentication")
 	if ta.provider == nil {
@@ -108,6 +131,9 @@ func (ta *TokenAuthenticator) Authenticate(ctx context.Context) error {
 	return ta.doOAuth(ctx, token)
 }
 
+// doOAuth builds and sends the TTC OAUTH message, then processes the server's
+// authentication reply and updates the session context with returned
+// connection properties.
 func (ta *TokenAuthenticator) doOAuth(ctx context.Context, token string) error {
 	shelf := ta.shelf
 	streamer := shelf.GetMessageStreamer().(MessageStreamerInterface)
@@ -120,7 +146,7 @@ func (ta *TokenAuthenticator) doOAuth(ctx context.Context, token string) error {
 	oauthPacket := oauthMsg.(*oAuth)
 	oauthPacket.setConnectString(ta.connectString)
 	oauthPacket.setLogonMode(ta.provider.logonMode())
-	if err := oauthPacket.prepareForTokenOAUTH(ta.username); err != nil {
+	if err := oauthPacket.prepareForTokenOAUTH(common.B1Array{}); err != nil {
 		return common.NewOracleError(common.AuthenticatorError, err, nil)
 	}
 	if err := ta.provider.applyAuthData(oauthPacket, token, tokenProviderContext{
@@ -178,6 +204,8 @@ func (ta *TokenAuthenticator) doOAuth(ctx context.Context, token string) error {
 	}
 }
 
+// resolveAccessToken returns the configured access token directly when present,
+// otherwise it reads the token from the provider-resolved token location.
 func (ta *TokenAuthenticator) resolveAccessToken() (string, error) {
 	if ta.accessToken != "" {
 		return ta.accessToken, nil
@@ -199,14 +227,20 @@ func (ta *TokenAuthenticator) resolveAccessToken() (string, error) {
 	return token, nil
 }
 
+// logonMode returns the OCI IAM token-authentication logon mode, combining the
+// standard logon bit with the token-authentication bit.
 func (provider ociTokenProvider) logonMode() int64 {
-	return 0x20000001
+	return common.KpzLogon.Value() | common.KpzLogonToken.Value()
 }
 
+// logonMode returns the generic OAuth token-authentication logon mode, which
+// uses the standard logon bit without the OCI token bit.
 func (oauthTokenProvider) logonMode() int64 {
-	return 0
+	return common.KpzLogon.Value()
 }
 
+// resolveTokenPath returns the OCI IAM token file path, defaulting to the
+// standard OCI db-token directory when tokenLocation is empty.
 func (provider ociTokenProvider) resolveTokenPath(tokenLocation string) (string, error) {
 	tokenDir, err := resolveTokenDirectory(tokenLocation, filepath.Join(".oci", "db-token"))
 	if err != nil {
@@ -215,10 +249,14 @@ func (provider ociTokenProvider) resolveTokenPath(tokenLocation string) (string,
 	return filepath.Join(tokenDir, tokenFileName), nil
 }
 
+// resolveTokenPath returns the generic OAuth token file path from either a file
+// path or a token directory.
 func (oauthTokenProvider) resolveTokenPath(tokenLocation string) (string, error) {
 	return resolveTokenLocation(tokenLocation)
 }
 
+// applyAuthData adds OCI-specific token authentication fields, including the
+// signed header and signature derived from the OCI private key.
 func (provider ociTokenProvider) applyAuthData(oauthPacket *oAuth, token string, ctx tokenProviderContext) error {
 	header, err := provider.generateTokenHeader(ctx)
 	if err != nil {
@@ -235,10 +273,14 @@ func (provider ociTokenProvider) applyAuthData(oauthPacket *oAuth, token string,
 	return oauthPacket.setTokenKeyValsForOAUTH(token, header, signer)
 }
 
+// applyAuthData adds generic OAuth authentication data using only the bearer
+// token.
 func (oauthTokenProvider) applyAuthData(oauthPacket *oAuth, token string, _ tokenProviderContext) error {
 	return oauthPacket.setTokenKeyValsForOAUTH(token, "", nil)
 }
 
+// generateTokenHeader builds the OCI signed header using the service name and
+// the connected remote network endpoint.
 func (provider ociTokenProvider) generateTokenHeader(ctx tokenProviderContext) (string, error) {
 	serviceName, err := extractServiceName(ctx.connectString)
 	if err != nil {
@@ -264,6 +306,9 @@ func (provider ociTokenProvider) generateTokenHeader(ctx tokenProviderContext) (
 	), nil
 }
 
+// resolveTokenDirectory resolves a token directory from either an explicit
+// location or a provider-specific default relative to the user's home
+// directory.
 func resolveTokenDirectory(tokenLocation, defaultRelativePath string) (string, error) {
 	if tokenLocation != "" {
 		info, err := os.Stat(tokenLocation)
@@ -283,6 +328,9 @@ func resolveTokenDirectory(tokenLocation, defaultRelativePath string) (string, e
 	return filepath.Join(homeDir, defaultRelativePath), nil
 }
 
+// resolveTokenLocation resolves a generic OAuth token location, accepting
+// either a direct token file path or a directory containing a file named
+// token.
 func resolveTokenLocation(tokenLocation string) (string, error) {
 	if strings.TrimSpace(tokenLocation) == "" {
 		return "", errors.New("missing token location")
@@ -297,6 +345,8 @@ func resolveTokenLocation(tokenLocation string) (string, error) {
 	return tokenLocation, nil
 }
 
+// resolveOCIPrivateKeyPath returns the OCI private key path associated with an
+// OCI token location.
 func resolveOCIPrivateKeyPath(tokenLocation string) (string, error) {
 	tokenDir, err := resolveTokenDirectory(tokenLocation, filepath.Join(".oci", "db-token"))
 	if err != nil {
@@ -305,15 +355,19 @@ func resolveOCIPrivateKeyPath(tokenLocation string) (string, error) {
 	return filepath.Join(tokenDir, ociPrivateKeyFileName), nil
 }
 
+// String returns a short diagnostic description of the token authenticator.
 func (ta *TokenAuthenticator) String() string {
 	return fmt.Sprintf("TokenAuthenticator{tokenAuthentication=%s, tokenLocation=%s}", ta.tokenAuthentication, ta.tokenLocation)
 }
 
+// extractServiceName returns SERVICE_NAME from an Oracle connect descriptor.
 func extractServiceName(connectString string) (string, error) {
 	common.Odl.Debug("ConnectionString", "connectString", connectString)
 	return extractAddressValue(connectString, "SERVICE_NAME")
 }
 
+// extractAddressValue extracts a single "(KEY=value)" component from an Oracle
+// connect descriptor.
 func extractAddressValue(connectString, key string) (string, error) {
 	upper := strings.ToUpper(connectString)
 	idx := strings.Index(upper, key+"=")
@@ -328,6 +382,8 @@ func extractAddressValue(connectString, key string) (string, error) {
 	return strings.TrimSpace(connectString[start : start+end]), nil
 }
 
+// readOCIPrivateKey reads and validates the OCI database private key used to
+// sign OCI IAM authentication headers.
 func readOCIPrivateKey(path string) (crypto.Signer, error) {
 	keyPEM, err := os.ReadFile(path)
 	if err != nil {
@@ -351,6 +407,8 @@ func readOCIPrivateKey(path string) (crypto.Signer, error) {
 	return signer, nil
 }
 
+// validateJWTExpiration checks the JWT exp claim when present and returns an
+// error if the token has expired.
 func validateJWTExpiration(token string) error {
 	parts := strings.Split(token, ".")
 	if len(parts) < 2 {
@@ -370,11 +428,13 @@ func validateJWTExpiration(token string) error {
 		return nil
 	}
 	if time.Unix(*claims.Exp, 0).Before(time.Now()) {
-		return errors.New("configured OCI token has expired")
+		return errors.New("configured access token has expired")
 	}
 	return nil
 }
 
+// signTokenHeader signs the OCI authentication header using SHA-256 and
+// returns the Base64-encoded signature.
 func signTokenHeader(header string, signer crypto.Signer) (string, error) {
 	sum := sha256.Sum256([]byte(header))
 	signature, err := signer.Sign(rand.Reader, sum[:], crypto.SHA256)

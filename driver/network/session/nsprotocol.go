@@ -97,6 +97,9 @@ func NewNetworkSession() *NetworkSession {
 	}
 }
 
+// GetRemoteAddress returns the connected remote TCP endpoint as "ip:port"
+// when the session is using a TCPS transport, or an empty string if the
+// remote address is not available.
 func (ns *NetworkSession) GetRemoteAddress() string {
 	tlsAdapter, ok := ns.NTAdapter.(*transport.NTTCPS)
 	if !ok {

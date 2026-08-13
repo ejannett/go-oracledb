@@ -75,7 +75,11 @@ const (
 type TokenAuthenticationType string
 
 const (
-	TokenAuthenticationOCI   TokenAuthenticationType = "OCI_TOKEN"
+	// TokenAuthenticationOCI selects OCI IAM token authentication using a token
+	// and OCI database private key bundle.
+	TokenAuthenticationOCI TokenAuthenticationType = "OCI_TOKEN"
+	// TokenAuthenticationOAuth selects generic OAuth bearer token
+	// authentication without an OCI database private key.
 	TokenAuthenticationOAuth TokenAuthenticationType = "OAUTH"
 )
 
@@ -92,10 +96,14 @@ var allTokenAuthenticationTypeNames = slices.Collect(func(yield func(string) boo
 	}
 })
 
+// String returns the Oracle connection-property string value for the token
+// authentication type.
 func (t TokenAuthenticationType) String() string {
 	return string(t)
 }
 
+// ParseTokenAuthenticationType normalizes and validates a token
+// authentication type string and returns the corresponding typed constant.
 func ParseTokenAuthenticationType(value, valueName string) (TokenAuthenticationType, error) {
 	normalized := strings.ToUpper(strings.TrimSpace(value))
 	if normalized == "" {
@@ -115,6 +123,8 @@ func ParseTokenAuthenticationType(value, valueName string) (TokenAuthenticationT
 	)
 }
 
+// IsValid reports whether the token authentication type is one of the
+// supported token authentication constants.
 func (t TokenAuthenticationType) IsValid() bool {
 	_, ok := tokenAuthenticationTypeValues[t.String()]
 	return ok
@@ -157,10 +167,14 @@ func NormalizeProtocol(ps string) (Protocol, error) {
 type LogonMode int64
 
 const (
+	// KpzLogon indicates flags applicable to logon
+	KpzLogon LogonMode = 0x00000001
 	// KpzLogonSysdba indicates SYSDBA privilege logon
 	KpzLogonSysdba LogonMode = 0x00000020
 	// KpzLogonSysoper indicates SYSOPER privilege logon
 	KpzLogonSysoper LogonMode = 0x00000040
+	// KpzLogonToken indicates token-based authentication.
+	KpzLogonToken LogonMode = 0x20000000
 )
 
 var logonModeName = map[LogonMode]string{
