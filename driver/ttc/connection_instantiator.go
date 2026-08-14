@@ -175,6 +175,8 @@ func createPasswordAuthenticator(parameters *common.OracleDriverConfig) (Authent
 }
 
 func createTokenAuthenticator(parameters *common.OracleDriverConfig) (Authenticator, error) {
+	// Question: is it OK to use the connect descriptor for getting the service name, or
+	// should we rather used the for parsed for from nv that was used to connect?
 	return NewTokenAuthenticator(
 		parameters.Credentials.TokenAuthentication,
 		parameters.Credentials.AccessToken,
