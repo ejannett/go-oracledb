@@ -160,15 +160,15 @@ func isInsufficientPrivilegeError(err error) bool {
 
 // TestDriver_Authentication_OCIToken verifies OCI IAM token authentication by
 // connecting to an Autonomous Database and querying DUAL. Set
-// ORACLE_GO_OCI_TOKEN_CONNECT_DESCRIPTOR, ORACLE_GO_OCI_TOKEN_LOCATION and
-// ORACLE_GO_OCI_TOKEN_EXPECTED_USER to run this integration test.
+// ORACLE_GO_OCI_TOKEN_CONNECT_DESCRIPTOR, ORACLE_GO_OCI_TOKEN_LOCATION (optional)
+// and ORACLE_GO_OCI_TOKEN_EXPECTED_USER to run this integration test.
 func TestDriver_Authentication_OCIToken(t *testing.T) {
 	connectDescriptor := os.Getenv("ORACLE_GO_OCI_TOKEN_CONNECT_DESCRIPTOR")
 	tokenLocation := os.Getenv("ORACLE_GO_OCI_TOKEN_LOCATION")
 	expectedUser := os.Getenv("ORACLE_GO_OCI_TOKEN_EXPECTED_USER")
 
-	if connectDescriptor == "" || tokenLocation == "" || expectedUser == "" {
-		t.Skip("OCI token authentication requires ORACLE_GO_OCI_TOKEN_CONNECT_DESCRIPTOR, ORACLE_GO_OCI_TOKEN_LOCATION and ORACLE_GO_OCI_TOKEN_EXPECTED_USER")
+	if connectDescriptor == "" || expectedUser == "" {
+		t.Skip("OCI token authentication requires ORACLE_GO_OCI_TOKEN_CONNECT_DESCRIPTOR and ORACLE_GO_OCI_TOKEN_EXPECTED_USER")
 	}
 
 	cfg := NewOracleDriverConfig()

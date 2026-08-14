@@ -513,7 +513,7 @@ func initMessagesEn() {
 	// Cause:    A required session context string value could not be retrieved or was empty.
 	// Action:   Verify that the session context is populated with the expected value before token authentication uses it.
 	// Comment:  Arg[0]: session context property key
-	message.SetString(language.English, string(SessionContextValueRetrievalError), "failed to retrieve session context value %s")
+	message.SetString(language.English, string(ValueRetrievalError), "failed to retrieve value %s")
 
 	// Document: No
 	// Cause:    The OCI private key is missing, malformed, or not a supported RSA signing key.

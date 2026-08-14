@@ -275,7 +275,7 @@ func (oauthTokenProvider) applyAuthData(oauthPacket *oAuth, token string, _ toke
 // generateTokenHeader builds the OCI signed header using the service name and
 // the connected remote network endpoint.
 func (provider ociTokenProvider) generateTokenHeader(ctx tokenProviderContext) (string, error) {
-	serviceName, err := getRequiredSessionProperty(ctx.sessionContext, "SERVICE_NAME")
+	serviceName, err := extractServiceName(ctx.connectString)
 	if err != nil {
 		return "", err
 	}
@@ -296,13 +296,32 @@ func (provider ociTokenProvider) generateTokenHeader(ctx tokenProviderContext) (
 func getRequiredSessionProperty(sessionContext *common.SessionContext, key string) (string, error) {
 	value, ok := sessionContext.GetSessionProperties().GetProperty(key).(string)
 	if !ok {
-		return "", common.NewOracleError(common.SessionContextValueRetrievalError, nil, key)
+		return "", common.NewOracleError(common.ValueRetrievalError, nil, key)
 	}
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return "", common.NewOracleError(common.SessionContextValueRetrievalError, nil, key)
+		return "", common.NewOracleError(common.ValueRetrievalError, nil, key)
 	}
 	return value, nil
+}
+
+func extractServiceName(connectString string) (string, error) {
+	common.Odl.Debug("ConnectionString", "connectString", connectString)
+	return extractAddressValue(connectString, "SERVICE_NAME")
+}
+
+func extractAddressValue(connectString, key string) (string, error) {
+	upper := strings.ToUpper(connectString)
+	idx := strings.Index(upper, key+"=")
+	if idx == -1 {
+		return "", fmt.Errorf("missing %s in connect descriptor", key)
+	}
+	start := idx + len(key) + 1
+	end := strings.IndexAny(connectString[start:], ")")
+	if end == -1 {
+		return "", fmt.Errorf("unterminated %s in connect descriptor", key)
+	}
+	return strings.TrimSpace(connectString[start : start+end]), nil
 }
 
 // resolveTokenDirectory resolves a token directory from either an explicit
@@ -357,29 +376,6 @@ func resolveOCIPrivateKeyPath(tokenLocation string) (string, error) {
 // String returns a short diagnostic description of the token authenticator.
 func (ta *tokenAuthenticator) String() string {
 	return fmt.Sprintf("TokenAuthenticator{tokenAuthentication=%s, tokenLocation=%s}", ta.tokenAuthentication, ta.tokenLocation)
-}
-
-// extractServiceName returns SERVICE_NAME from an Oracle connect descriptor.
-func extractServiceName(connectString string) (string, error) {
-	common.Odl.Debug("ConnectionString", "connectString", connectString)
-	// TODO: check if service name is present in session context
-	return extractAddressValue(connectString, "SERVICE_NAME")
-}
-
-// extractAddressValue extracts a single "(KEY=value)" component from an Oracle
-// connect descriptor.
-func extractAddressValue(connectString, key string) (string, error) {
-	upper := strings.ToUpper(connectString)
-	idx := strings.Index(upper, key+"=")
-	if idx == -1 {
-		return "", fmt.Errorf("missing %s in connect descriptor", key)
-	}
-	start := idx + len(key) + 1
-	end := strings.IndexAny(connectString[start:], ")")
-	if end == -1 {
-		return "", fmt.Errorf("unterminated %s in connect descriptor", key)
-	}
-	return strings.TrimSpace(connectString[start : start+end]), nil
 }
 
 // readOCIPrivateKey reads and validates the OCI database private key used to
