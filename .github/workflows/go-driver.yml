@@ -79,9 +79,9 @@ jobs:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: coverage-sanity
-          path: ${{ github.workspace }}/coverage/functional
+          path: ${{ github.workspace }}/coverage/sanity
       - run: |
-          go tool covdata merge -i=${{ github.workspace }}/coverage/unit,${{ github.workspace }}/coverage/functional -o ${{ github.workspace }}/merged
+          go tool covdata merge -i=${{ github.workspace }}/coverage/unit,${{ github.workspace }}/coverage/sanity -o ${{ github.workspace }}/merged
           go tool covdata textfmt -i=${{ github.workspace }}/coverage/merged -o=${{ github.workspace }}/coverage.out
       - run: |
           awk 'BEGIN{min=75} /^mode:/ {next} {split($1,a,":"); f=a[1]; s=$2+0; c=$3+0; total[f]+=s; all+=s; if(c>0){covered[f]+=s; cov+=s}} END{for(f in total) printf "%s %.1f%%\n", f, 100*covered[f]/total[f]; pct=all?100*cov/all:0; printf "total: %.1f%%\n", pct; exit(pct>=min?0:1)}' ${{ github.workspace }}/coverage.out
@@ -122,12 +122,12 @@ jobs:
           database-user: ${{ steps.create_database.outputs.database_user }}
           database-password: ${{ steps.create_database.outputs.database_password }}
       - run: |
-          mkdir -p ${{ github.workspace }}/coverage/functional
-          go test -parallel=10  -shuffle=on -v $ORACLE_DRIVER_MODULE -coverpkg=./... -cover -run TestCategoryExecutor  -args -test.gocoverdir=${{ github.workspace }}/coverage/functional -driver.config.filename=${{ github.workspace }}/go-driver-config.json -driver.config.name=pipeline_test  -test.category="sanity"
+          mkdir -p ${{ github.workspace }}/coverage/sanity
+          go test -parallel=10  -shuffle=on -v $ORACLE_DRIVER_MODULE -coverpkg=./... -cover -run TestCategoryExecutor  -args -test.gocoverdir=${{ github.workspace }}/coverage/sanity -driver.config.filename=${{ github.workspace }}/go-driver-config.json -driver.config.name=pipeline_test  -test.category="sanity"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-functional
-          path: ${{ github.workspace }}/coverage/functional
+          name: coverage-sanity
+          path: ${{ github.workspace }}/coverage/sanity
           if-no-files-found: error
       - uses: oracle-actions/setup-testpilot@0e9d9b877bb35f65e3f1f1c54c6a425329dd7ece # v1.0.27
         if: always()
