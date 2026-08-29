@@ -1,4 +1,4 @@
-name: functional validation for forked repo
+name: functional-validation-for-forked-repo
 on:
   pull_request:
     branches:
