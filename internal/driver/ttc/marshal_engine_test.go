@@ -2083,7 +2083,7 @@ func TestUnmarshalCLRReadLessThatTotalLengthNoSpace(t *testing.T) {
 	checkSQLErrorCodeContains(t, err, string(oracleErrors.MarshalEngineError), "CLR")
 }
 
-// Creates a marshal ending for testing
+// Creates a marshal ending for tests
 func newMarshalEngine(byteOrder common.ByteOrder, typ byte, rep byte, bufSize int) (*ArrayBasedDataBuffer, *MarshalEngine) {
 	dataBuffer := NewArrayDataBuffer(bufSize)
 	typeRep := newTypeRep()

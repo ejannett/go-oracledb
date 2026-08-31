@@ -46,7 +46,7 @@ import (
 	oracleErrors "github.com/oracle/go-oracledb/v26/oracle/errors"
 )
 
-/* Test helpers */
+/* Test tests */
 
 func mustParse(t *testing.T, s string) *Node {
 	t.Helper()
@@ -547,7 +547,7 @@ func TestHelpersAndMethods(t *testing.T) {
 		}
 	})
 
-	t.Run("Description address helpers", func(t *testing.T) {
+	t.Run("Description address tests", func(t *testing.T) {
 		d := &Description{}
 		if d.HasAddressLists() {
 			t.Error("expected no address lists")

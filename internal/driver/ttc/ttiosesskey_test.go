@@ -190,7 +190,7 @@ func TestOSesskeyRPANew(t *testing.T) {
 }
 
 func makeOSesskeyRPASuccessPayload() []byte {
-	// Simplified payload for testing UnMarshalFrom
+	// Simplified payload for tests UnMarshalFrom
 	// UB2 number of pairs (2)
 	// Then key-value pairs
 	// AUTH_SESSKEY: "sessionkey"

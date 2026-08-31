@@ -1123,7 +1123,7 @@ func TestPrintPacket(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			common.Opl = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: tt.logLevel}))
 			PrintPacket(tt.buf, tt.offset, tt.length)
-			// No assertions needed as we're testing for coverage and no panics
+			// No assertions needed as we're tests for coverage and no panics
 		})
 	}
 }

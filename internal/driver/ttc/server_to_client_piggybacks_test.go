@@ -212,7 +212,7 @@ func TestHandleServerToClientPiggyback_ErrorInMessage(t *testing.T) {
 	}
 }
 
-// mockFunction implements common.Function for testing
+// mockFunction implements common.Function for tests
 type mockFunction struct {
 	common.Message[common.MessageType]
 	funcCode common.FunctionType

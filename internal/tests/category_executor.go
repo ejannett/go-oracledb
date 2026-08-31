@@ -35,41 +35,48 @@
 ** OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ** SOFTWARE.
  */
-
-package utils
+package tests
 
 import (
-	"fmt"
-	"os"
+	"strings"
 	"testing"
-
-	oracleTest "github.com/oracle/go-oracledb/v26/internal/tests"
 )
 
-func TestMain(m *testing.M) {
-	err := oracleTest.InitConfig()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "InitConfig failed: %v\n", err)
-		os.Exit(1)
+type CategorizedTestCase struct {
+	Name       string
+	Categories string
+	Exclusive  bool
+	Fn         func(t *testing.T)
+}
+
+func RunCategoryExecutor(t *testing.T, category string, cases []CategorizedTestCase) {
+	var regularCases []CategorizedTestCase
+	var exclusiveCases []CategorizedTestCase
+
+	for _, c := range cases {
+		cats := strings.Split(c.Categories, ",")
+		for _, p := range cats {
+			if strings.TrimSpace(p) == category {
+				if c.Exclusive {
+					exclusiveCases = append(exclusiveCases, c)
+				} else {
+					regularCases = append(regularCases, c)
+				}
+				break
+			}
+		}
 	}
-	TestEnvironement = oracleTest.TestEnvironement
-	TestingConfig = oracleTest.TestingConfig
-	DefaultTestConfig = oracleTest.DefaultTestConfig
-	TestCategory = oracleTest.TestCategory
-	os.Exit(m.Run())
+
+	if len(regularCases) > 0 {
+		t.Run("parallel", func(t *testing.T) {
+			t.Parallel()
+			for _, c := range regularCases {
+				t.Run(c.Name, c.Fn)
+			}
+		})
+	}
+
+	for _, c := range exclusiveCases {
+		t.Run(c.Name, c.Fn)
+	}
 }
-
-var testCases = []oracleTest.CategorizedTestCase{}
-
-func TestCategoryExecutor(t *testing.T) {
-	oracleTest.RunCategoryExecutor(t, oracleTest.TestCategory, testCases)
-}
-
-type Version = oracleTest.Version
-type TestConfig = oracleTest.TestConfig
-type TestingEnvironment = oracleTest.TestingEnvironment
-
-var DefaultTestConfig *TestConfig
-var TestEnvironement TestingEnvironment
-var TestingConfig *TestConfig
-var TestCategory string

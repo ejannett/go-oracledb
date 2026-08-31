@@ -103,7 +103,7 @@ func buildOracleConnector(driver driver.Driver, cfg *naming.ParsedConfig, drvCon
 	return connector
 }
 
-// newOracleConnector private creator of OracleConnector for testing, returns an error if one of the functions is nil
+// newOracleConnector private creator of OracleConnector for tests, returns an error if one of the functions is nil
 func newOracleConnector(cfg *naming.ParsedConfig, drvConfig *oracleconfig.OracleDriverConfig, connCreator ConnCreator, connInstantiatorFactory ConnInstantiatorFactory) (driver.Connector, error) {
 	if connCreator == nil || connInstantiatorFactory == nil {
 		return nil, common.NewOracleError(oracleErrors.InternalError, nil)

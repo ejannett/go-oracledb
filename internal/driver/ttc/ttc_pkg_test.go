@@ -43,7 +43,6 @@ import (
 	"container/list"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"math"
@@ -54,14 +53,35 @@ import (
 	"time"
 
 	"github.com/oracle/go-oracledb/v26/internal/driver/common"
+	oracleTest "github.com/oracle/go-oracledb/v26/internal/tests"
 )
 
-// TestCategory category of tests to be un
-var TestCategory string
-
 func TestMain(m *testing.M) {
-	flag.StringVar(&TestCategory, "test.category", "", "testing category, can be unitary, functional, performance, robustness")
-	os.Exit(m.Run())
+	err := InitConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "InitConfig failed: %v\n", err)
+		os.Exit(1)
+	} else {
+		os.Exit(m.Run())
+	}
+}
+
+type Version = oracleTest.Version
+type TestConfig = oracleTest.TestConfig
+type TestingEnvironment = oracleTest.TestingEnvironment
+
+var DefaultTestConfig *TestConfig
+var TestEnvironement TestingEnvironment
+var TestingConfig *TestConfig
+
+func InitConfig() error {
+	if err := oracleTest.InitConfig(); err != nil {
+		return err
+	}
+	TestEnvironement = oracleTest.TestEnvironement
+	TestingConfig = oracleTest.TestingConfig
+	DefaultTestConfig = oracleTest.DefaultTestConfig
+	return nil
 }
 
 var testCases = []struct {
@@ -590,7 +610,7 @@ func TestCategoryExecutor(t *testing.T) {
 	for _, c := range testCases {
 		cats := strings.Split(c.categories, ",")
 		for _, p := range cats {
-			if strings.Compare(strings.TrimSpace(p), TestCategory) == 0 {
+			if strings.Compare(strings.TrimSpace(p), oracleTest.TestCategory) == 0 {
 				if c.exclusive {
 					exclusiveCases = append(exclusiveCases, c)
 				} else {
@@ -615,7 +635,7 @@ func TestCategoryExecutor(t *testing.T) {
 	}
 }
 
-// ArrayBasedDataBuffer is an implementation of DataBuffer for testing purposes.
+// ArrayBasedDataBuffer is an implementation of DataBuffer for tests purposes.
 type ArrayBasedDataBuffer struct {
 	bytes                []byte
 	currentWritePosition int
@@ -704,7 +724,7 @@ func (array *ArrayBasedDataBuffer) ReadBytesWithContext(ctx context.Context, len
 	return &res, nil
 }
 
-// FaultyArrayBasedDataBuffer is an ArrayBasedDataBuffer that can simulate read/write errors for testing.
+// FaultyArrayBasedDataBuffer is an ArrayBasedDataBuffer that can simulate read/write errors for tests.
 type FaultyArrayBasedDataBuffer struct {
 	*ArrayBasedDataBuffer
 
@@ -760,7 +780,7 @@ func (f *FaultyArrayBasedDataBuffer) ReadByteWithContext(ctx context.Context) (b
 	return f.ArrayBasedDataBuffer.ReadByteWithContext(ctx)
 }
 
-// NewMarshalEngineTest creates a new MarshalEngine for testing purposes.
+// NewMarshalEngineTest creates a new MarshalEngine for tests purposes.
 func NewMarshalEngineTest(byteOrder common.ByteOrder, typ byte, rep byte, bufSize int) (*ArrayBasedDataBuffer, *MarshalEngine) {
 	dataBuffer := NewArrayDataBuffer(bufSize)
 	typeRep := newTypeRep()
@@ -859,7 +879,7 @@ func createMarshaller(buf []byte, failOn FailOn, callCount int) common.Marshalle
 
 // *** Factory ***
 
-// mockFactory implements common.Factory for testing
+// mockFactory implements common.Factory for tests
 type mockFactory struct {
 	getMsgForFuncCalled bool
 	msgType             common.MessageType
@@ -879,7 +899,7 @@ func (m *mockFactory) GetMessageForFunction(msgType common.MessageType, funcType
 	return m.returnMsg, m.returnErr
 }
 
-// mockFactory implements common.Factory for testing
+// mockFactory implements common.Factory for tests
 type mockFactoryWithList struct {
 	returnMsg  []common.Message[common.MessageType]
 	currentMsg int
@@ -964,7 +984,7 @@ func (t *TestDataBuffer) ReadBytesWithContext(ctx context.Context, n int32) (*[]
 
 // *** Streamer ***
 
-// mockStreamer implements common.Streamer[common.MessageType] for testing
+// mockStreamer implements common.Streamer[common.MessageType] for tests
 type mockStreamer struct {
 	pushCalled bool
 	pushedMsg  list.List
@@ -1133,7 +1153,7 @@ func (m *mockNetworkSession) Disconnect(ctx context.Context, flags int) error {
 
 // *** Negotiator ***
 
-// mockNegotiator is a mock implementation of the Negotiator interface for testing.
+// mockNegotiator is a mock implementation of the Negotiator interface for tests.
 type mockNegotiator struct {
 	sessCtx         *common.SessionContext
 	shelf           *ttiShelf[common.MessageType]
@@ -1148,7 +1168,7 @@ func (m *mockNegotiator) Negotiate(ctx context.Context) (*common.SessionContext,
 
 // *** Authenticator ***
 
-// mockAuthenticator is a mock implementation of the Authenticator interface for testing.
+// mockAuthenticator is a mock implementation of the Authenticator interface for tests.
 type mockAuthenticator struct {
 	err                error
 	authenticateCalled bool

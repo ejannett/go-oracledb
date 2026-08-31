@@ -47,7 +47,7 @@ import (
 )
 
 // lobExecutor provides the base TTC RPC implementation that every LOB executor builds
-// on. It owns the message plumbing and shared helpers so higher-level BLOB/CLOB
+// on. It owns the message plumbing and shared tests so higher-level BLOB/CLOB
 // code can reuse the core RPC flow without re-implementing or validation logic.
 type lobExecutor struct {
 	// shelf provides access to cached TTC message factories and streamers scoped to a connection.

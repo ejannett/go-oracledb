@@ -206,7 +206,7 @@ func TestDecryptAES(t *testing.T) {
 	o5 := newO5Logon(false)
 	key := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 	plaintext := []byte("Hello, World!!!") // 16 bytes
-	// Encrypt manually for testing
+	// Encrypt manually for tests
 	encrypted, err := o5._encryptAES(key, plaintext, "AES/CBC/PKCS5Padding")
 	if err != nil {
 		t.Fatalf("Encrypt failed: %v", err)
