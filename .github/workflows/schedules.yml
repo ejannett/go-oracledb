@@ -26,7 +26,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
   functional_validate_driver:
     runs-on: [ self-hosted, Linux, X64, OracleTestPilot ]
     strategy:
