@@ -93,7 +93,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - rdbms: autonomous-transaction-processing-serverless-26ai
+          - rdbms: base-database-service-26ai
     needs:
       - unit_tests
     timeout-minutes: 10
