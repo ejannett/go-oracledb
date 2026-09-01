@@ -41,20 +41,25 @@ package naming
 import (
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	oracleTest "github.com/oracle/go-oracledb/v26/internal/tests"
 )
 
 func TestMain(m *testing.M) {
-	err := InitConfig()
+	err := oracleTest.InitConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "InitConfig failed: %v\n", err)
 		os.Exit(1)
-	} else {
-		os.Exit(m.Run())
 	}
+	TestEnvironement = oracleTest.TestEnvironement
+	TestingConfig = oracleTest.TestingConfig
+	DefaultTestConfig = oracleTest.DefaultTestConfig
+	os.Exit(m.Run())
+}
+
+func TestCategoryExecutor(t *testing.T) {
+	oracleTest.RunCategoryExecutor(t, oracleTest.TestCategory, testCases)
 }
 
 type Version = oracleTest.Version
@@ -65,22 +70,7 @@ var DefaultTestConfig *TestConfig
 var TestEnvironement TestingEnvironment
 var TestingConfig *TestConfig
 
-func InitConfig() error {
-	if err := oracleTest.InitConfig(); err != nil {
-		return err
-	}
-	TestEnvironement = oracleTest.TestEnvironement
-	TestingConfig = oracleTest.TestingConfig
-	DefaultTestConfig = oracleTest.DefaultTestConfig
-	return nil
-}
-
-var testCases = []struct {
-	name       string
-	categories string
-	exclusive  bool
-	f          func(t *testing.T)
-}{
+var testCases = []oracleTest.CategorizedTestCase{
 	{"TestNewConnectionIterator_Basic", "unitary", false, TestNewConnectionIterator_Basic},
 	{"TestConnectionIterator_Next_Basic", "unitary", false, TestConnectionIterator_Next_Basic},
 	{"TestExtractDescription_DefaultSecurity", "unitary", false, TestExtractDescription_DefaultSecurity},
@@ -241,40 +231,4 @@ var testCases = []struct {
 	{"TestResolveAddresses_ContextHandling", "unitary", false, TestResolveAddresses_ContextHandling},
 	{"TestResolveAddresses_DNSExpansion", "unitary", false, TestResolveAddresses_DNSExpansion},
 	{"TestResolveAddresses_HostClassification", "unitary", false, TestResolveAddresses_HostClassification},
-}
-
-func TestCategoryExecutor(t *testing.T) {
-	var regularCases, exclusiveCases []struct {
-		name       string
-		categories string
-		exclusive  bool
-		f          func(t *testing.T)
-	}
-
-	for _, c := range testCases {
-		cats := strings.Split(c.categories, ",")
-		for _, p := range cats {
-			if strings.Compare(strings.TrimSpace(p), oracleTest.TestCategory) == 0 {
-				if c.exclusive {
-					exclusiveCases = append(exclusiveCases, c)
-				} else {
-					regularCases = append(regularCases, c)
-				}
-				break
-			}
-		}
-	}
-
-	if len(regularCases) > 0 {
-		t.Run("parallel", func(t *testing.T) {
-			t.Parallel()
-			for _, c := range regularCases {
-				t.Run(c.name, c.f)
-			}
-		})
-	}
-
-	for _, c := range exclusiveCases {
-		t.Run(c.name, c.f)
-	}
 }
