@@ -559,7 +559,7 @@ func TestParseDSNString_CommaBetweenNodes_FailsFast(t *testing.T) {
 	assertErrorCode(t, err, oracleErrors.NamingParseFailed)
 }
 
-// Additional coverage for unexported tests and error branches
+// Additional coverage for unexported helpers and error branches
 func TestParseIterative_NoTokens(t *testing.T) {
 	t.Parallel()
 	_, err := parseIterative([]string{})

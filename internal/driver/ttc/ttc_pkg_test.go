@@ -635,7 +635,7 @@ func TestCategoryExecutor(t *testing.T) {
 	}
 }
 
-// ArrayBasedDataBuffer is an implementation of DataBuffer for tests purposes.
+// ArrayBasedDataBuffer is an implementation of DataBuffer for testing purposes.
 type ArrayBasedDataBuffer struct {
 	bytes                []byte
 	currentWritePosition int
@@ -724,7 +724,7 @@ func (array *ArrayBasedDataBuffer) ReadBytesWithContext(ctx context.Context, len
 	return &res, nil
 }
 
-// FaultyArrayBasedDataBuffer is an ArrayBasedDataBuffer that can simulate read/write errors for tests.
+// FaultyArrayBasedDataBuffer is an ArrayBasedDataBuffer that can simulate read/write errors for testing.
 type FaultyArrayBasedDataBuffer struct {
 	*ArrayBasedDataBuffer
 
@@ -780,7 +780,7 @@ func (f *FaultyArrayBasedDataBuffer) ReadByteWithContext(ctx context.Context) (b
 	return f.ArrayBasedDataBuffer.ReadByteWithContext(ctx)
 }
 
-// NewMarshalEngineTest creates a new MarshalEngine for tests purposes.
+// NewMarshalEngineTest creates a new MarshalEngine for testing purposes.
 func NewMarshalEngineTest(byteOrder common.ByteOrder, typ byte, rep byte, bufSize int) (*ArrayBasedDataBuffer, *MarshalEngine) {
 	dataBuffer := NewArrayDataBuffer(bufSize)
 	typeRep := newTypeRep()
@@ -879,7 +879,7 @@ func createMarshaller(buf []byte, failOn FailOn, callCount int) common.Marshalle
 
 // *** Factory ***
 
-// mockFactory implements common.Factory for tests
+// mockFactory implements common.Factory for testing
 type mockFactory struct {
 	getMsgForFuncCalled bool
 	msgType             common.MessageType
@@ -899,7 +899,7 @@ func (m *mockFactory) GetMessageForFunction(msgType common.MessageType, funcType
 	return m.returnMsg, m.returnErr
 }
 
-// mockFactory implements common.Factory for tests
+// mockFactory implements common.Factory for testing
 type mockFactoryWithList struct {
 	returnMsg  []common.Message[common.MessageType]
 	currentMsg int
@@ -984,7 +984,7 @@ func (t *TestDataBuffer) ReadBytesWithContext(ctx context.Context, n int32) (*[]
 
 // *** Streamer ***
 
-// mockStreamer implements common.Streamer[common.MessageType] for tests
+// mockStreamer implements common.Streamer[common.MessageType] for testing
 type mockStreamer struct {
 	pushCalled bool
 	pushedMsg  list.List
@@ -1153,7 +1153,7 @@ func (m *mockNetworkSession) Disconnect(ctx context.Context, flags int) error {
 
 // *** Negotiator ***
 
-// mockNegotiator is a mock implementation of the Negotiator interface for tests.
+// mockNegotiator is a mock implementation of the Negotiator interface for testing.
 type mockNegotiator struct {
 	sessCtx         *common.SessionContext
 	shelf           *ttiShelf[common.MessageType]
@@ -1168,7 +1168,7 @@ func (m *mockNegotiator) Negotiate(ctx context.Context) (*common.SessionContext,
 
 // *** Authenticator ***
 
-// mockAuthenticator is a mock implementation of the Authenticator interface for tests.
+// mockAuthenticator is a mock implementation of the Authenticator interface for testing.
 type mockAuthenticator struct {
 	err                error
 	authenticateCalled bool

@@ -49,7 +49,7 @@ import (
 
 // Overview
 // This test file validates string-type converters in a consistent, type-first flow.
-// Shared test data and tests live in testdata_string_types_test.go to avoid duplication.
+// Shared test data and helpers live in testdata_string_types_test.go to avoid duplication.
 // Sections below are ordered by Oracle types: VARCHAR2, CHAR, NVARCHAR2, and NCHAR.
 // Each section contains encode tests, decode tests, UTF-8/AL16UTF16 behavior when applicable,
 // and round-trip checks where meaningful.

@@ -525,7 +525,7 @@ func (c *clobExecutor) encodeLobCharPayload(
 	}
 
 	// Slice the runes that should be encoded. When the requested window falls outside the source
-	// (e.g. offset == len(source)), we return early to avoid invoking conversion tests with an
+	// (e.g. offset == len(source)), we return early to avoid invoking conversion helpers with an
 	// empty slice.
 	runesToEncode := source[offset:end]
 	if len(runesToEncode) == 0 {

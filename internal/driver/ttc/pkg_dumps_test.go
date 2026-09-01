@@ -1903,7 +1903,7 @@ func makeTtioacUnmarshalPayload(dump []string) []byte {
 }
 
 // ExtractBytesFromDump extracts the []byte from the dump
-// for tests.
+// for testing.
 func ExtractBytesFromDump(lines []string) ([]byte, error) {
 	buf := []byte{}
 	isHex := regexp.MustCompile(`^[0-9A-Fa-f]{2}$`)

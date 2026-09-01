@@ -50,7 +50,7 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// Wire-payload tests
+// Wire-payload helpers
 // ---------------------------------------------------------------------------
 
 // encodeUniversalUB4 encodes v using Oracle's Universal (compact) integer format,

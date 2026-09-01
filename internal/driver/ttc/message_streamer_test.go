@@ -448,7 +448,7 @@ func TestMessageStreamer_CallbackUnregister(t *testing.T) {
 	}
 }
 
-// prepares a tests shelf
+// prepares a testing shelf
 func _prepareShelf() *ttiShelf[common.MessageType] {
 
 	marshaller := newMockMarshaller()

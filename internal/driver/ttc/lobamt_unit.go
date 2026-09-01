@@ -71,7 +71,7 @@ const (
 	// lobAmtUnknown instructs callers to suppress the amount when marshalling
 	// the payload because the expected unit cannot be determined confidently.
 	// The protocol lacks a formal specification for every character set pairing,
-	// so the only way to discover the correct unit is by tests combinations and
+	// so the only way to discover the correct unit is by testing combinations and
 	// observing which ones avoid errors such as ORA-03137. Behaviour can vary by
 	// database character set; for example, matching UTF-8 pairs accept code points,
 	// while a UTF-8 client paired with a TH8TISASCII database rejects them.

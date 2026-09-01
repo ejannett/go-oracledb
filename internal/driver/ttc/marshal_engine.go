@@ -49,7 +49,7 @@ import (
 )
 
 // unmarshalTypes lists the concrete TTC numeric wrapper types supported by the
-// generic marshal and unmarshal tests in this file.
+// generic marshal and unmarshal helpers in this file.
 type unmarshalTypes interface {
 	driverCommon.UB1 | driverCommon.UB2 | driverCommon.UB4 | driverCommon.UB8 | driverCommon.SB1 | driverCommon.SB2 | driverCommon.SB4
 }

@@ -81,8 +81,8 @@ type lobColumnContext struct {
 // payloads, so columnContext instances are constructed on-demand while scanning
 // rows.
 //
-// Only the fields required by the decode tests are surfaced here. Additional
-// metadata can be appended without impacting existing decode tests because
+// Only the fields required by the decode helpers are surfaced here. Additional
+// metadata can be appended without impacting existing decode helpers because
 // the struct is passed by value.
 type columnContext struct {
 	Index                int

@@ -44,9 +44,9 @@ import (
 	"github.com/oracle/go-oracledb/v26/internal/driver/common"
 )
 
-// Dummy message structs for tests
+// Dummy message structs for testing
 // testDummyMessage is a dummy implementation of the Message interface
-// used for tests message registration and retrieval in factory tests.
+// used for testing message registration and retrieval in factory tests.
 type testDummyMessage struct {
 	greetings string
 }
@@ -60,7 +60,7 @@ var dummy2 = testDummyMessage{greetings: "newTestDummyMessage2"}
 var dummy3 = testDummyMessage{greetings: "newTestDummyMessage3"}
 
 // testFuncMessage is a dummy implementation of the Message interface
-// used for tests function-based message creation in factory tests.
+// used for testing function-based message creation in factory tests.
 type testFuncMessage struct {
 	name string
 }
