@@ -69,12 +69,17 @@ type ttlCacheEntry[T any] struct {
 // when the cache become full the oldest element is remove to make room for
 // the new entry
 type TTLCache[T any] struct {
-	maxSize int
-	ttl     time.Duration
-	entries map[string]ttlCacheEntry[T]
+	maxSize        int
+	ttl            time.Duration
+	nextExpiration time.Time
+	entries        map[string]ttlCacheEntry[T]
 }
 
 func NewTTLCache[T any](maxSize int, ttl time.Duration) *TTLCache[T] {
+	if maxSize <= 0 {
+		// deal with error
+	}
+
 	return &TTLCache[T]{
 		maxSize: maxSize,
 		ttl:     ttl,
@@ -83,7 +88,9 @@ func NewTTLCache[T any](maxSize int, ttl time.Duration) *TTLCache[T] {
 }
 
 func (c *TTLCache[T]) Get(key string) (value T, found bool) {
-	c.removeExpired()
+	if c.shouldRemoveExpired() {
+		c.removeExpired()
+	}
 
 	entry, ok := c.entries[key]
 	if !ok {
@@ -95,6 +102,7 @@ func (c *TTLCache[T]) Get(key string) (value T, found bool) {
 }
 
 func (c *TTLCache[T]) Put(key string, value T) T {
+	now := time.Now()
 	var previous T
 	if entry, ok := c.entries[key]; ok {
 		previous = entry.value
@@ -102,7 +110,11 @@ func (c *TTLCache[T]) Put(key string, value T) T {
 
 	c.entries[key] = ttlCacheEntry[T]{
 		value: value,
-		ctime: time.Now(),
+		ctime: now,
+	}
+	expiresAt := now.Add(c.ttl)
+	if c.nextExpiration.IsZero() || expiresAt.Before(c.nextExpiration) {
+		c.nextExpiration = expiresAt
 	}
 
 	if c.maxSize > 0 && len(c.entries) > c.maxSize {
@@ -115,6 +127,7 @@ func (c *TTLCache[T]) Put(key string, value T) T {
 func (c *TTLCache[T]) Remove(key string) bool {
 	if _, ok := c.entries[key]; ok {
 		delete(c.entries, key)
+		c.recomputeNextExpiration()
 		return true
 	}
 	return false
@@ -122,18 +135,29 @@ func (c *TTLCache[T]) Remove(key string) bool {
 
 func (c *TTLCache[T]) Clear() {
 	clear(c.entries)
+	c.nextExpiration = time.Time{}
 }
 
 func (c *TTLCache[T]) removeExpired() {
-	if c.ttl <= 0 {
-		return
-	}
 	now := time.Now()
+	var nextExpiration time.Time
+	first := true
 	for key, entry := range c.entries {
-		if now.Sub(entry.ctime) > c.ttl {
+		expiresAt := entry.ctime.Add(c.ttl)
+		if !now.Before(expiresAt) {
 			delete(c.entries, key)
+			continue
+		}
+		if first || expiresAt.Before(nextExpiration) {
+			nextExpiration = expiresAt
+			first = false
 		}
 	}
+	if first {
+		c.nextExpiration = time.Time{}
+		return
+	}
+	c.nextExpiration = nextExpiration
 }
 
 // removeOldest evicts the entry with the oldest fixed creation timestamp.
@@ -153,12 +177,39 @@ func (c *TTLCache[T]) removeOldest() {
 
 	if !first {
 		delete(c.entries, oldestKey)
+		c.recomputeNextExpiration()
 	}
+}
+
+func (c *TTLCache[T]) shouldRemoveExpired() bool {
+	if c.nextExpiration.IsZero() {
+		return false
+	}
+	return !time.Now().Before(c.nextExpiration)
+}
+
+func (c *TTLCache[T]) recomputeNextExpiration() {
+	if len(c.entries) == 0 {
+		c.nextExpiration = time.Time{}
+		return
+	}
+
+	var next time.Time
+	first := true
+	for _, entry := range c.entries {
+		expiresAt := entry.ctime.Add(c.ttl)
+		if first || expiresAt.Before(next) {
+			next = expiresAt
+			first = false
+		}
+	}
+
+	c.nextExpiration = next
 }
 
 type SafeTTLCache[T any] struct {
 	TTLCache[T]
-	lock sync.RWMutex
+	lock sync.Mutex
 }
 
 func (c *SafeTTLCache[T]) Get(key string) (value T, found bool) {
