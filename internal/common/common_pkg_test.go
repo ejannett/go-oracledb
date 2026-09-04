@@ -89,4 +89,6 @@ var testCases = []oracleTest.CategorizedTestCase{
 	{Name: "TestProviderRegistryRegisterProviderEvictsOldestWhenCapacityExceeded", Categories: "unitary", Exclusive: false, Fn: TestProviderRegistryRegisterProviderEvictsOldestWhenCapacityExceeded},
 	{Name: "TestProviderRegistryGetProviderReturnsRequestedInterface", Categories: "unitary", Exclusive: false, Fn: TestProviderRegistryGetProviderReturnsRequestedInterface},
 	{Name: "TestProviderRegistryGetProviderReturnsErrorWhenUninitialized", Categories: "unitary", Exclusive: false, Fn: TestProviderRegistryGetProviderReturnsErrorWhenUninitialized},
+	{Name: "TestNewTTLCache", Categories: "unitary", Exclusive: false, Fn: TestNewTTLCache},
+	{Name: "TestTTLCacheStoresStringPointerValue", Categories: "unitary", Exclusive: false, Fn: TestTTLCacheStoresStringPointerValue},
 }
