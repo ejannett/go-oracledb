@@ -38,7 +38,10 @@
 
 package common
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // Cache interface for cache mechanism in the go driver
 type Cache[T any] interface {
@@ -61,7 +64,7 @@ type ttlCacheEntry[T any] struct {
 	ctime time.Time // cached value creation time
 }
 
-// TTLCache cache implementation that has a fix size.
+// TTLCache is a cache implementation that has a fix size.
 // This caches stores value that are automatically evisted after a given TTL
 // when the cache become full the oldest element is remove to make room for
 // the new entry
@@ -151,4 +154,33 @@ func (c *TTLCache[T]) removeOldest() {
 	if !first {
 		delete(c.entries, oldestKey)
 	}
+}
+
+type SafeTTLCache[T any] struct {
+	TTLCache[T]
+	lock sync.RWMutex
+}
+
+func (c *SafeTTLCache[T]) Get(key string) (value T, found bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.TTLCache.Get(key)
+}
+
+func (c *SafeTTLCache[T]) Put(key string, value T) T {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.TTLCache.Put(key, value)
+}
+
+func (c *SafeTTLCache[T]) Remove(key string) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.TTLCache.Remove(key)
+}
+
+func (c *SafeTTLCache[T]) Clear() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.TTLCache.Clear()
 }

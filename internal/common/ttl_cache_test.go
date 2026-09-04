@@ -79,3 +79,39 @@ func TestTTLCacheStoresStringPointerValue(t *testing.T) {
 		t.Fatalf("expected IP %q, got %q", ip, *got)
 	}
 }
+
+func TestSafeTTLCacheDelegatesToTTLCache(t *testing.T) {
+	cache := &SafeTTLCache[string]{
+		TTLCache: *NewTTLCache[string](2, time.Minute),
+	}
+
+	if previous := cache.Put("host", "10.0.0.1"); previous != "" {
+		t.Fatalf("expected zero previous value, got %q", previous)
+	}
+
+	got, found := cache.Get("host")
+	if !found {
+		t.Fatal("expected value to be found")
+	}
+	if got != "10.0.0.1" {
+		t.Fatalf("expected cached IP, got %q", got)
+	}
+
+	if !cache.Remove("host") {
+		t.Fatal("expected remove to succeed")
+	}
+
+	got, found = cache.Get("host")
+	if found {
+		t.Fatal("expected value to be removed")
+	}
+	if got != "" {
+		t.Fatalf("expected zero value after remove, got %q", got)
+	}
+
+	cache.Put("host", "10.0.0.1")
+	cache.Clear()
+	if len(cache.entries) != 0 {
+		t.Fatalf("expected cache to be empty after clear, got %d entries", len(cache.entries))
+	}
+}

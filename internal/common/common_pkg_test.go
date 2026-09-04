@@ -91,4 +91,5 @@ var testCases = []oracleTest.CategorizedTestCase{
 	{Name: "TestProviderRegistryGetProviderReturnsErrorWhenUninitialized", Categories: "unitary", Exclusive: false, Fn: TestProviderRegistryGetProviderReturnsErrorWhenUninitialized},
 	{Name: "TestNewTTLCache", Categories: "unitary", Exclusive: false, Fn: TestNewTTLCache},
 	{Name: "TestTTLCacheStoresStringPointerValue", Categories: "unitary", Exclusive: false, Fn: TestTTLCacheStoresStringPointerValue},
+	{Name: "TestSafeTTLCacheDelegatesToTTLCache", Categories: "unitary", Exclusive: false, Fn: TestSafeTTLCacheDelegatesToTTLCache},
 }
