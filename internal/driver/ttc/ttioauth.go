@@ -697,7 +697,7 @@ func (rpa *OAuthRPA) UnMarshalFrom(ctx context.Context, engine driverCommon.Mars
 	rpa.outNbPairs, err = engine.UnmarshalUB2(ctx)
 	if err != nil {
 		common.Odl.Warn("Unable to unmarshal oAuth RPA, cant' get pairs count", "error", err)
-		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "RPA")
+		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "OAUTH RPA")
 	}
 	if err = validateAuthKeyValueLength("pairs", driverCommon.SB4(rpa.outNbPairs), maxAuthKeyValuePairs); err != nil {
 		return err
@@ -708,7 +708,7 @@ func (rpa *OAuthRPA) UnMarshalFrom(ctx context.Context, engine driverCommon.Mars
 	err = ((driverCommon.UnMarshallable)(keyValueList)).UnMarshalFrom(ctx, engine)
 	if err != nil {
 		common.Odl.Warn("Unable to unmarshal oAuth RPA, cant' unmarshal key/value pairs", "error", err)
-		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "RPA")
+		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "OAUTH RPA")
 	}
 
 	rpa.connectionValues = driverCommon.NewProperties[string]()
@@ -720,20 +720,20 @@ func (rpa *OAuthRPA) UnMarshalFrom(ctx context.Context, engine driverCommon.Mars
 
 	if !rpa.connectionValues.ContainsKey(authDbMountID) {
 		common.Odl.Warn("Unable to unmarshal oAuth RPA, missing property", "property", authDbMountID)
-		return common.NewOracleError(oracleErrors.FailUnmarshal, nil, "RPA")
+		return common.NewOracleError(oracleErrors.FailUnmarshal, nil, "OAUTH RPA")
 	}
 
 	authDBMountID, err := rpa.connectionValues.GetTrimmedString(authDbMountID)
 	if err != nil {
 		common.Odl.Warn("Unable to get authDbMountID while unmarshalling oAuth RPA", "error", err)
-		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "RPA")
+		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "OAUTH RPA")
 
 	}
 
 	parseLong, err := strconv.ParseInt(authDBMountID, 10, 64)
 	if err != nil {
 		common.Odl.Warn("Unable to parse int while unmarshalling oAuth RPA", "error", err)
-		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "RPA")
+		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "OAUTH RPA")
 	}
 
 	if authDBMountID != "" &&
