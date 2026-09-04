@@ -45,6 +45,8 @@ import (
 	"time"
 )
 
+// BenchmarkPoolOpen measures the cost of checking out a pooled database
+// connection and returning it to the pool on each iteration.
 func BenchmarkPoolOpen(b *testing.B) {
 	if TestingConfig == nil {
 		b.Skip("No configuration available")
@@ -64,8 +66,9 @@ func BenchmarkPoolOpen(b *testing.B) {
 	}
 }
 
+// BenchmarkFullPooledConnectionCycle measures a pooled connection checkout
+// followed by a ping before the connection is returned to the pool.
 func BenchmarkFullPooledConnectionCycle(b *testing.B) {
-
 	db, err := openTestDBWithConfig(TestingConfig)
 	if err != nil {
 		b.Logf("error opening db: %s", err.Error())
@@ -81,8 +84,9 @@ func BenchmarkFullPooledConnectionCycle(b *testing.B) {
 	}
 }
 
+// BenchmarkPoolOpenOneCnx measures pooled connection checkout when the pool
+// is constrained to a single open connection.
 func BenchmarkPoolOpenOneCnx(b *testing.B) {
-
 	db, err := openTestDBWithConfig(TestingConfig)
 	if err != nil {
 		b.Logf("error opening db: %s", err.Error())
@@ -101,8 +105,10 @@ func BenchmarkPoolOpenOneCnx(b *testing.B) {
 		}
 	}
 }
-func BenchmarkPoolOpenWithWarmOneCnx(b *testing.B) {
 
+// BenchmarkPoolOpenWithWarmOneCnx measures single-connection pool checkout
+// after priming the pool with one already-created connection.
+func BenchmarkPoolOpenWithWarmOneCnx(b *testing.B) {
 	db, err := openTestDBWithConfig(TestingConfig)
 	if err != nil {
 		b.Logf("error opening db: %s", err.Error())
@@ -127,6 +133,8 @@ func BenchmarkPoolOpenWithWarmOneCnx(b *testing.B) {
 	}
 }
 
+// BenchmarkSimpleOpen measures direct connector connection creation and
+// close without using the sql.DB pool.
 func BenchmarkSimpleOpen(b *testing.B) {
 	if TestingConfig == nil {
 		b.Skip("No configuration available")
@@ -147,9 +155,10 @@ func BenchmarkSimpleOpen(b *testing.B) {
 	}
 }
 
+// BenchmarkSimpleSelectDual measures repeated execution of SELECT 1 FROM
+// DUAL on a single checked-out connection.
 func BenchmarkSimpleSelectDual(b *testing.B) {
 	var val int
-	dsn := TestingConfig.GetConnectionString()
 
 	db, err := openTestDBWithConfig(TestingConfig)
 	if err != nil {
@@ -170,10 +179,9 @@ func BenchmarkSimpleSelectDual(b *testing.B) {
 
 }
 
+// BenchmarkSimpleSelect measures repeated scanning of rows from a simple
+// two-column table using a single checked-out connection.
 func BenchmarkSimpleSelect(b *testing.B) {
-
-	dsn := TestingConfig.GetConnectionString()
-
 	db, err := openTestDBWithConfig(TestingConfig)
 	if err != nil {
 		b.Logf("Error opening connection: %s", err.Error())
@@ -207,6 +215,8 @@ func BenchmarkSimpleSelect(b *testing.B) {
 
 }
 
+// BenchmarkInsertMultipleValues measures repeated inserts that bind several
+// Oracle data types through one checked-out connection.
 func BenchmarkInsertMultipleValues(b *testing.B) {
 	if TestingConfig == nil {
 		b.Skip("No configuration available")
