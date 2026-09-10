@@ -180,7 +180,7 @@ const (
 	ocqcinv      byte = 1  // Query Cache Invalidations
 	ocospid      byte = 2  // OS PID for MTS connection
 	octrcevt     byte = 3  // OCI trace event piggyback
-	ocsessret    byte = 4  // Server CP return values for GET
+	ocsessret    byte = 4  // Server DRCP return values for GET
 	ocssync      byte = 5  // Session state synchronization
 	ocxsss       byte = 6  // eXtensible security Session State Sync
 	ocltxid      byte = 7  // LTXID

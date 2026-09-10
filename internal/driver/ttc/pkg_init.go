@@ -268,6 +268,16 @@ func init() {
 		common.Odl.Warn("Failed to register oSessionKey function reply", "error", err)
 	}
 
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTISPF, functionType: driverCommon.FunctionType(ocospid)}, -1, newttiSPFOCOspid)
+	if err != nil {
+		common.Odl.Warn("Failed to register SPF function", "error", err)
+	}
+
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTISPF, functionType: driverCommon.FunctionType(ocsessret)}, -1, newttiSPFOCSessret)
+	if err != nil {
+		common.Odl.Warn("Failed to register SPF function", "error", err)
+	}
+
 	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTISPF, functionType: driverCommon.FunctionType(ocssync)}, -1, newttiSPFOCSSync)
 	if err != nil {
 		common.Odl.Warn("Failed to register SPF function", "error", err)

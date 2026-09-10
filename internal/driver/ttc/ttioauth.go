@@ -83,6 +83,9 @@ const (
 	authACL           = "AUTH_ACL"
 	authSid           = "AUTH_SID"
 
+	authSessionId = "AUTH_SESSION_ID"
+	authSessionSerial = "AUTH_SERIAL_NUM"
+
 	authSessionClientDrvnm = "SESSION_CLIENT_DRIVER_NAME"
 	authSessionClientVsn   = "SESSION_CLIENT_VERSION"
 
