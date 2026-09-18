@@ -40,9 +40,13 @@ package session
 
 import (
 	"bytes"
+	"compress/flate"
+	"compress/zlib"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"time"
@@ -60,7 +64,6 @@ type networkSession struct {
 	isBreak             bool
 	isReset             bool
 	breakPosted         bool
-	compressionEnabled  bool
 	endOfRequestSupport bool
 	supportsFastAuth    bool
 	redirectCount       int
@@ -87,15 +90,14 @@ const (
 // newNetworkSession creates a new networkSession instance
 func newNetworkSession() *networkSession {
 	return &networkSession{
-		connected:          false,
-		isBreak:            false,
-		isReset:            false,
-		breakPosted:        false,
-		compressionEnabled: false,
-		sndDatapkt:         &dataPacket{},
-		rcvDatapkt:         &dataPacket{},
-		controlPkt:         &controlPacket{},
-		byteOrder:          driverCommon.BIG_ENDIAN,
+		connected:   false,
+		isBreak:     false,
+		isReset:     false,
+		breakPosted: false,
+		sndDatapkt:  &dataPacket{},
+		rcvDatapkt:  &dataPacket{},
+		controlPkt:  &controlPacket{},
+		byteOrder:   driverCommon.BIG_ENDIAN,
 	}
 }
 
@@ -144,7 +146,7 @@ func remoteTCPAddrFromConn(remoteAddr net.Addr) *net.TCPAddr {
 // transportConnect establishes the transport-level connection
 func (ns *networkSession) transportConnect(ctx context.Context, address transport.Address) error {
 	if address.Protocol == driverCommon.ProtocolTCP && address.HTTPSProxy != "" {
-		return fmt.Errorf("https proxy requires protocol as tcps")
+		return common.NewOracleError(oracleErrors.UnsupportedFeature, nil, "HTTPS proxy")
 	}
 	if ns.ntAdapter == nil {
 		if address.Protocol == driverCommon.ProtocolTCP {
@@ -174,7 +176,7 @@ func (ns *networkSession) handleAccept(ctx context.Context, p *acceptPacket) err
 		if err != nil {
 			return err
 		}
-		return fmt.Errorf("unsupported TNS version: %d (minimum required: %d)", ns.sAtts.version, TNS_VERSION_MINIMUM)
+		return common.NewOracleError(oracleErrors.InvalidNetworkContextExpectedValue, nil, "TNS version", "NSPTAC", ns.sAtts.version, TNS_VERSION_MINIMUM)
 	}
 
 	if ns.sAtts.version >= TNS_VERSION_MIN_DATA_FLAGS {
@@ -182,7 +184,7 @@ func (ns *networkSession) handleAccept(ctx context.Context, p *acceptPacket) err
 		if len(p.buf) < NSPACFL2+4 { // we gonna read an Uint32
 			msg := fmt.Sprintf("Unexpected buffer length (%d) in accept packet", len(p.buf))
 			common.Odl.Warn(msg)
-			return common.NewOracleError(oracleErrors.InternalError, nil, msg)
+			return common.NewOracleError(oracleErrors.InvalidNetworkContextExpectedLength, nil, "packet", "NSPTAC", len(p.buf), NSPACFL2+4)
 		}
 		acceptFlag2 := binary.BigEndian.Uint32(p.buf[NSPACFL2:])
 		ns.endOfRequestSupport = (acceptFlag2&TNS_ACCEPT_FLAG_HAS_END_OF_REQUEST != 0)
@@ -274,7 +276,7 @@ func (ns *networkSession) handleRefuse(ctx context.Context, p *refusePacket, add
 	}
 	refuseNode, err := naming.Parse(p.dataBuf)
 	if err != nil {
-		return fmt.Errorf("parse error in refuse data: %w", err)
+		return common.NewOracleError(oracleErrors.RefuseDataParseFailed, err)
 	}
 	errCode, err := refuseNode.GetValue("DESCRIPTION/ERR")
 	if err != nil {
@@ -282,7 +284,7 @@ func (ns *networkSession) handleRefuse(ctx context.Context, p *refusePacket, add
 	}
 	mappedCode, ok := oracleErrors.OracleRefuseErrorCodes[errCode]
 	if !ok {
-		return fmt.Errorf("connection refused: ERR code ORA-%s, user reason %d, system reason %d", errCode, p.userReason, p.systemReason)
+		return common.NewOracleError(oracleErrors.ConnectionRefusedDetail, nil, errCode, p.userReason, p.systemReason)
 	}
 
 	args, err := ns.refuseArgs(errCode, address)
@@ -295,7 +297,7 @@ func (ns *networkSession) handleRefuse(ctx context.Context, p *refusePacket, add
 func (ns *networkSession) handleRedirect(ctx context.Context, p *redirectPacket, address transport.Address) error {
 	ns.redirectCount++
 	if ns.redirectCount > maxRedirectCount {
-		return fmt.Errorf("too many redirects: exceeded maximum of %d", maxRedirectCount)
+		return common.NewOracleError(oracleErrors.NetworkRetryLimitExceeded, nil, "redirects", maxRedirectCount)
 	}
 	if p.overflow {
 		if _, err := ns.recvPacket(ctx); err != nil {
@@ -363,7 +365,7 @@ func (ns *networkSession) handleRedirect(ctx context.Context, p *redirectPacket,
 		}
 		return nil // continue the loop
 	}
-	return fmt.Errorf("no redirect option available")
+	return common.NewOracleError(oracleErrors.RedirectAddressMissing, nil)
 }
 
 func (ns *networkSession) handleResend(ctx context.Context, p *resendPacket, connectPkt *connectPacket) error {
@@ -378,7 +380,7 @@ func (ns *networkSession) handleResend(ctx context.Context, p *resendPacket, con
 			an error when there's no TLS-capable adapter behind the session.
 		*/
 		if !ok {
-			return fmt.Errorf("invalid resend flag for non-TCPS connection")
+			return common.NewOracleError(oracleErrors.TLSRenegotiationUnsupported, nil)
 		}
 		tlsAdapter.TLSReneg()
 	}
@@ -443,7 +445,7 @@ func (ns *networkSession) connect(ctx context.Context, address transport.Address
 				if disconnectErr := ns.Disconnect(ctx, 0); disconnectErr != nil {
 					return disconnectErr
 				}
-				return fmt.Errorf("too many resends: exceeded maximum of %d", maxResendCount)
+				return common.NewOracleError(oracleErrors.NetworkRetryLimitExceeded, nil, "resends", maxResendCount)
 			}
 			err = ns.handleResend(ctx, p, connectPkt)
 			if err != nil {
@@ -456,7 +458,7 @@ func (ns *networkSession) connect(ctx context.Context, address transport.Address
 			if disconnectErr := ns.Disconnect(ctx, 0); disconnectErr != nil {
 				return disconnectErr
 			}
-			return fmt.Errorf("unexpected packet type during connect")
+			return common.NewOracleError(oracleErrors.UnexpectedConnectResponse, nil)
 		}
 	}
 }
@@ -524,12 +526,12 @@ func (ns *networkSession) sendConnect(ctx context.Context, connectPkt *connectPa
 
 	err := ns.SendPacket(ctx, connectPkt.buf)
 	if err != nil {
-		return fmt.Errorf("NS send connect packet failed: %w", err)
+		return err
 	}
 	if connectPkt.overflow {
 		err = ns.Send(ctx, connectPkt.connectData, 0, connectPkt.connectDataLen)
 		if err != nil {
-			return fmt.Errorf("NS send connect packet failed: %w", err)
+			return err
 		}
 	}
 	return nil
@@ -575,7 +577,7 @@ func (ns *networkSession) recvPacket(ctx context.Context) (any, error) {
 	}
 
 	if packetLen < PACKET_HEADER_SIZE || packetLen > len(ns.rcvBuf) {
-		return nil, fmt.Errorf("invalid packet length: %d", packetLen)
+		return nil, common.NewOracleError(oracleErrors.InvalidNetworkLength, nil, "packet", packetLen)
 	}
 	bodyLen := packetLen - PACKET_HEADER_SIZE
 	if bodyLen > 0 {
@@ -584,7 +586,7 @@ func (ns *networkSession) recvPacket(ctx context.Context) (any, error) {
 			return nil, err
 		}
 		if n != bodyLen {
-			return nil, fmt.Errorf("incomplete body read: got %d, expected %d", n, bodyLen)
+			return nil, common.NewOracleError(oracleErrors.InvalidNetworkExpectedLength, nil, "packet body", n, bodyLen)
 		}
 	}
 	buf := ns.rcvBuf[:packetLen]
@@ -620,7 +622,7 @@ func (ns *networkSession) recvPacket(ctx context.Context) (any, error) {
 
 // processPacket processes a packet and returns its unmarshaled struct
 func (ns *networkSession) processPacket(buf []byte, hdr *header) (any, error) {
-	var packet packet
+	var packet packetUnmarshaller
 	switch hdr.typ {
 	case NSPTAC:
 		packet = &acceptPacket{}
@@ -634,10 +636,60 @@ func (ns *networkSession) processPacket(buf []byte, hdr *header) (any, error) {
 		packet = &markerPacket{}
 	case NSPTCNL:
 		packet = ns.controlPkt
+	// NSPTDA is an Oracle Net DATA packet; its payload begins at NSPDADAT.
 	case NSPTDA:
+		if int(hdr.packetLength) < NSPDADAT {
+			return nil, common.NewOracleError(oracleErrors.InvalidNetworkContextExpectedLength, nil, "packet", "NSPTDA", hdr.packetLength, NSPDADAT)
+		}
+		flags := binary.BigEndian.Uint16(buf[NSPDAFLG:])
+		if ns.sAtts.networkCompressionEnabled && flags&NSPDAFCMP != 0 {
+			// NSPDAFCMP applies only to the payload; keep the wire header intact.
+			header := append([]byte(nil), buf[:NSPDADAT]...)
+			payload := buf[NSPDADAT:]
+			var r io.ReadCloser
+			var err error
+			PrintPacket(payload, 0, len(payload))
+			if ns.sAtts.firstRecvCompressedPacket {
+				// Oracle Net uses zlib Z_SYNC_FLUSH framing: the first packet has a
+				// zlib wrapper and later packets use raw DEFLATE.
+				r, err = zlib.NewReader(bytes.NewReader(payload))
+				ns.sAtts.firstRecvCompressedPacket = false
+			} else {
+				r = flate.NewReader(bytes.NewReader(payload))
+			}
+			if err != nil {
+				common.Odl.Error("failed to initialize network decompression", "algorithm", "zlib", "error", err, "payload-length", len(payload))
+				return nil, common.NewOracleError(oracleErrors.NetworkDecompressionFailed, err, "zlib")
+			}
+			decompressed, err := io.ReadAll(r)
+			closeErr := r.Close()
+			syncFlush := bytes.HasSuffix(payload, []byte{0, 0, 0xff, 0xff})
+			// Oracle Net packets end a continuing zlib/DEFLATE stream with a
+			// SYNC_FLUSH marker, not a final stream marker. Go reports
+			// io.ErrUnexpectedEOF for that valid packet boundary. Any other
+			// unexpected EOF is a truncated packet.
+			if err != nil && (!errors.Is(err, io.ErrUnexpectedEOF) || !syncFlush) {
+				common.Odl.Error("failed to decompress network packet", "algorithm", "zlib", "error", err, "payload-length", len(payload), "sync-flush", syncFlush)
+				return nil, common.NewOracleError(oracleErrors.NetworkDecompressionFailed, err, "zlib")
+			}
+			if closeErr != nil && (!errors.Is(closeErr, io.ErrUnexpectedEOF) || !syncFlush) {
+				common.Odl.Error("failed to close network decompressor", "algorithm", "zlib", "error", closeErr, "payload-length", len(payload), "sync-flush", syncFlush)
+				return nil, common.NewOracleError(oracleErrors.NetworkDecompressionFailed, closeErr, "zlib")
+			}
+			buf = append(header, decompressed...)
+			// The payload size changed, so update the packet length and remove its compression flag
+			// before the normal data-packet unmarshal path reads the packet.
+			if ns.sAtts.largeSDU {
+				binary.BigEndian.PutUint32(buf[:4], uint32(len(buf)))
+			} else {
+				binary.BigEndian.PutUint16(buf[:2], uint16(len(buf)))
+			}
+			binary.BigEndian.PutUint16(buf[NSPDAFLG:], flags&^NSPDAFCMP)
+			hdr.unmarshal(buf, ns.sAtts, nil)
+		}
 		packet = ns.rcvDatapkt
 	default:
-		return nil, fmt.Errorf("unsupported packet type: %d", hdr.typ)
+		return nil, common.NewOracleError(oracleErrors.InvalidNetworkValue, nil, "packet type", hdr.typ)
 	}
 	err := packet.unmarshal(buf, ns.sAtts, hdr)
 	if err != nil {
@@ -663,7 +715,60 @@ func (ns *networkSession) processPacket(buf []byte, hdr *header) (any, error) {
 func (ns *networkSession) SendPacket(ctx context.Context, buf []byte) error {
 	PrintPacket(buf, 0, len(buf))
 	if len(buf) < PACKET_HEADER_SIZE {
-		return fmt.Errorf("buffer too short: %d bytes, need at least %d", len(buf), PACKET_HEADER_SIZE)
+		return common.NewOracleError(oracleErrors.InvalidNetworkExpectedLength, nil, "packet buffer", len(buf), PACKET_HEADER_SIZE)
+	}
+	if ns.sAtts.networkCompressionEnabled && len(buf) > ns.sAtts.networkCompressionThreshold && buf[4] == NSPTDA {
+		if len(buf) < NSPDADAT {
+			return common.NewOracleError(oracleErrors.InvalidNetworkContextExpectedLength, nil, "packet", "NSPTDA", len(buf), NSPDADAT)
+		}
+		// Only data-packet payloads above the negotiated threshold may be compressed.
+		header := append([]byte(nil), buf[:NSPDADAT]...)
+		payload := buf[NSPDADAT:]
+		var (
+			compressed bytes.Buffer
+			err        error
+		)
+		if ns.sAtts.firstSendCompressedPacket {
+			// Start the stream with zlib framing; later packets use raw DEFLATE.
+			zw, zErr := zlib.NewWriterLevel(&compressed, zlib.DefaultCompression)
+			if zErr != nil {
+				common.Odl.Error("failed to initialize network compression", "algorithm", "zlib", "error", zErr, "payload-length", len(payload))
+				return zErr
+			}
+			if _, err = zw.Write(payload); err == nil {
+				err = zw.Flush()
+			}
+		} else {
+			fw, fErr := flate.NewWriter(&compressed, flate.DefaultCompression)
+			if fErr != nil {
+				common.Odl.Error("failed to initialize network compression", "algorithm", "deflate", "error", fErr, "payload-length", len(payload))
+				return fErr
+			}
+			if _, err = fw.Write(payload); err == nil {
+				err = fw.Flush()
+			}
+		}
+
+		if err != nil {
+			common.Odl.Error("failed to compress network packet", "algorithm", "zlib", "error", err, "payload-length", len(payload))
+			return common.NewOracleError(oracleErrors.NetworkCompressionFailed, err, "zlib")
+		}
+		compressedBytes := compressed.Bytes()
+		if len(compressedBytes) < len(payload) {
+			// Use compression only if it makes the payload smaller.
+			if ns.sAtts.firstSendCompressedPacket {
+				ns.sAtts.firstSendCompressedPacket = false
+			}
+			buf = append(header, compressedBytes...)
+			// Mark the data flags as compressed, then publish the new length.
+			flags := binary.BigEndian.Uint16(buf[NSPDAFLG:])
+			binary.BigEndian.PutUint16(buf[NSPDAFLG:], flags|NSPDAFCMP)
+			if ns.sAtts.largeSDU {
+				binary.BigEndian.PutUint32(buf[:4], uint32(len(buf)))
+			} else {
+				binary.BigEndian.PutUint16(buf[:2], uint16(len(buf)))
+			}
+		}
 	}
 	return ns.ntAdapter.Send(ctx, buf)
 }

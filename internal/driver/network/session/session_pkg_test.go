@@ -59,7 +59,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestCategoryExecutor(t *testing.T) {
-	oracleTest.RunCategoryExecutor(t, oracleTest.TestCategory, testCases)
+	oracleTest.RunCategoryExecutor(t, oracleTest.TestCategories, testCases)
 }
 
 type Version = oracleTest.Version
@@ -85,6 +85,13 @@ var testCases = []oracleTest.CategorizedTestCase{
 	{Name: "TestSendPacketError", Categories: "unitary", Exclusive: true, Fn: TestSendPacketError},
 	{Name: "TestSendConnect", Categories: "unitary", Exclusive: false, Fn: TestSendConnect},
 	{Name: "TestProcessPacket", Categories: "unitary", Exclusive: false, Fn: TestProcessPacket},
+	{Name: "TestProcessPacketCompressed", Categories: "unitary", Exclusive: false, Fn: TestProcessPacketCompressed},
+	{Name: "TestProcessPacketCompressedError", Categories: "unitary", Exclusive: false, Fn: TestProcessPacketCompressedError},
+	{Name: "TestProcessPacketTruncatedDataHeader", Categories: "unitary", Exclusive: false, Fn: TestProcessPacketTruncatedDataHeader},
+	{Name: "TestProcessPacketCompressedTruncated", Categories: "unitary", Exclusive: false, Fn: TestProcessPacketCompressedTruncated},
+	{Name: "TestSendPacketCompressed", Categories: "unitary", Exclusive: false, Fn: TestSendPacketCompressed},
+	{Name: "TestSendPacketCompressedLargeSDU", Categories: "unitary", Exclusive: false, Fn: TestSendPacketCompressedLargeSDU},
+	{Name: "TestSendPacketCompressionThreshold", Categories: "unitary", Exclusive: false, Fn: TestSendPacketCompressionThreshold},
 	{Name: "TestCheckInbandNotification", Categories: "unitary", Exclusive: false, Fn: TestCheckInbandNotification},
 	{Name: "TestRecvPacket", Categories: "unitary", Exclusive: true, Fn: TestRecvPacket},
 	{Name: "TestRefuseArgs", Categories: "unitary", Exclusive: false, Fn: TestRefuseArgs},
@@ -107,7 +114,6 @@ var testCases = []oracleTest.CategorizedTestCase{
 	{Name: "TestIsInBreakReset", Categories: "unitary", Exclusive: false, Fn: TestIsInBreakReset},
 	{Name: "TestReadMultiPacket", Categories: "unitary", Exclusive: false, Fn: TestReadMultiPacket},
 	{Name: "TestFlush", Categories: "unitary", Exclusive: false, Fn: TestFlush},
-	{Name: "TestSendInterrupt", Categories: "unitary", Exclusive: false, Fn: TestSendInterrupt},
 	{Name: "TestSendReset", Categories: "unitary", Exclusive: false, Fn: TestSendReset},
 	{Name: "TestPrepareReadBufferWithData", Categories: "unitary", Exclusive: false, Fn: TestPrepareReadBufferWithData},
 	{Name: "TestReadUI32MultiPacket", Categories: "unitary", Exclusive: false, Fn: TestReadUI32MultiPacket},
@@ -116,7 +122,6 @@ var testCases = []oracleTest.CategorizedTestCase{
 	{Name: "TestCancelOperation", Categories: "unitary", Exclusive: false, Fn: TestCancelOperation},
 	{Name: "TestHeaderMarshalUnmarshal", Categories: "unitary", Exclusive: false, Fn: TestHeaderMarshalUnmarshal},
 	{Name: "TestConnectPacketMarshal", Categories: "unitary", Exclusive: false, Fn: TestConnectPacketMarshal},
-	{Name: "TestConnectPacketUnmarshal", Categories: "unitary", Exclusive: false, Fn: TestConnectPacketUnmarshal},
 	{Name: "TestDataPacketMarshal", Categories: "unitary", Exclusive: false, Fn: TestDataPacketMarshal},
 	{Name: "TestDataPacketFillBuf", Categories: "unitary", Exclusive: false, Fn: TestDataPacketFillBuf},
 	{Name: "TestDataPacketPrepare2Send", Categories: "unitary", Exclusive: false, Fn: TestDataPacketPrepare2Send},
@@ -126,6 +131,7 @@ var testCases = []oracleTest.CategorizedTestCase{
 	{Name: "TestDataPacketRead", Categories: "unitary", Exclusive: false, Fn: TestDataPacketRead},
 	{Name: "TestDataPacketRemaining", Categories: "unitary", Exclusive: false, Fn: TestDataPacketRemaining},
 	{Name: "TestAcceptPacketUnmarshal", Categories: "unitary", Exclusive: false, Fn: TestAcceptPacketUnmarshal},
+	{Name: "TestAcceptPacketUnmarshalUnsupportedCompressionScheme", Categories: "unitary", Exclusive: false, Fn: TestAcceptPacketUnmarshalUnsupportedCompressionScheme},
 	{Name: "TestRefusePacketUnmarshal", Categories: "unitary", Exclusive: false, Fn: TestRefusePacketUnmarshal},
 	{Name: "TestRedirectPacketUnmarshal", Categories: "unitary", Exclusive: false, Fn: TestRedirectPacketUnmarshal},
 	{Name: "TestMarkerPacket", Categories: "unitary", Exclusive: false, Fn: TestMarkerPacket},

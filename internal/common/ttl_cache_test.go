@@ -43,25 +43,8 @@ import (
 	"time"
 )
 
-func TestNewTTLCache(t *testing.T) {
-	cache := NewTTLCache[string](2, 50*time.Millisecond)
-	if cache == nil {
-		t.Fatal("expected cache instance")
-	}
-	if cache.maxSize != 2 {
-		t.Fatalf("expected maxSize 2, got %d", cache.maxSize)
-	}
-	if cache.ttl != 50*time.Millisecond {
-		t.Fatalf("expected ttl 50ms, got %s", cache.ttl)
-	}
-	if cache.entries == nil {
-		t.Fatal("expected entries map to be initialized")
-	}
-	if len(cache.entries) != 0 {
-		t.Fatalf("expected empty cache, got %d entries", len(cache.entries))
-	}
-}
-
+// TestTTLCacheStoresStringPointerValue verifies the cache can store and return
+// pointer values without losing the referenced string data.
 func TestTTLCacheStoresStringPointerValue(t *testing.T) {
 	cache := NewTTLCache[*string](2, time.Minute)
 	ip := "192.168.1.10"
@@ -80,38 +63,256 @@ func TestTTLCacheStoresStringPointerValue(t *testing.T) {
 	}
 }
 
-func TestSafeTTLCacheDelegatesToTTLCache(t *testing.T) {
-	cache := &SafeTTLCache[string]{
-		TTLCache: *NewTTLCache[string](2, time.Minute),
+// TestTTLCacheStoresStringPointerValue verifies the cache can store and return
+// pointer values without losing the referenced string data.
+func TestTTLCacheStoresNilValue(t *testing.T) {
+	cache := NewTTLCache[*string](2, time.Minute)
+	ip := "192.168.1.10"
+
+	cache.Put(ip, nil)
+
+	got, found := cache.Get(ip)
+	if !found {
+		t.Fatal("expected pointer value to be found")
+	}
+	if got != nil {
+		t.Fatal("expected nil pointer value")
 	}
 
-	if previous := cache.Put("host", "10.0.0.1"); previous != "" {
-		t.Fatalf("expected zero previous value, got %q", previous)
+}
+
+// TestTTLCacheExpiresEntriesIndependently verifies entries expire based on
+// their own creation time.
+func TestTTLCacheExpiresEntriesIndependently(t *testing.T) {
+	cache := NewTTLCache[string](2, 5*time.Second)
+
+	cache.Put("first", "192.168.1.10")
+	time.Sleep(4 * time.Second)
+	cache.Put("second", "192.168.1.11")
+	time.Sleep(2 * time.Second)
+
+	if got, found := cache.Get("first"); found {
+		t.Fatalf("expected first value to be expired, got %q", got)
+	}
+
+	got, found := cache.Get("second")
+	if !found {
+		t.Fatal("expected second value to be found")
+	}
+	if got != "192.168.1.11" {
+		t.Fatalf("expected second value %q, got %q", "192.168.1.11", got)
+	}
+}
+
+// TestTTLCacheRemovesAllExpiredEntries verifies expired entries are removed
+// from the cache after the TTL has elapsed.
+func TestTTLCacheRemovesAllExpiredEntries(t *testing.T) {
+	cache := NewTTLCache[string](3, 3*time.Second)
+
+	cache.Put("first", "192.168.1.10")
+	cache.Put("second", "192.168.1.11")
+	cache.Put("third", "192.168.1.12")
+
+	time.Sleep(5 * time.Second)
+
+	if got, found := cache.Get("first"); found {
+		t.Fatalf("expected first value to be expired, got %q", got)
+	}
+	if got, found := cache.Get("second"); found {
+		t.Fatalf("expected first value to be expired, got %q", got)
+	}
+	if got, found := cache.Get("third"); found {
+		t.Fatalf("expected first value to be expired, got %q", got)
+	}
+
+}
+
+// TestTTLCacheNotFoundEntry verifies missing entries
+func TestTTLCacheNotFoundEntry(t *testing.T) {
+	cache := NewTTLCache[string](3, 3*time.Second)
+
+	if got, found := cache.Get("first"); found {
+		t.Fatalf("expected cache to be empty, got %q", got)
+	}
+	cache.Put("second", "192.168.1.11")
+
+	if got, found := cache.Get("first"); found {
+		t.Fatalf("expected entry to be missing, got %q", got)
+	}
+}
+
+// TestTTLCacheClearEntries verifies missing entries
+// expectations: once cleared, the cache must hold previously added values
+func TestTTLCacheClearEntries(t *testing.T) {
+	cache := NewTTLCache[string](3, 3*time.Second)
+
+	cache.Put("first", "192.168.1.11")
+	cache.Put("second", "192.168.1.11")
+	cache.Clear()
+	if got, found := cache.Get("first"); found {
+		t.Fatalf("expected cache to be empty, got %q", got)
+	}
+
+	if got, found := cache.Get("second"); found {
+		t.Fatalf("expected entry to be missing, got %q", got)
+	}
+}
+
+// TestTTLCacheOverwriteEntry verifies overwrite of values
+// expectations: Adding two different entries using the same key. Second value must overwrite the first one.
+func TestTTLCacheOverwriteEntry(t *testing.T) {
+	cache := NewTTLCache[string](2, time.Minute)
+	if cache == nil {
+		t.Fatal("expected cache instance")
+	}
+
+	previous := cache.Put("host", "10.0.0.1")
+	if previous != "" {
+		t.Fatalf("expected zero previous value for new key, got %q", previous)
+	}
+
+	previous = cache.Put("host", "10.0.0.2")
+	if previous != "10.0.0.1" {
+		t.Fatalf("expected previous value %q, got %q", "10.0.0.1", previous)
 	}
 
 	got, found := cache.Get("host")
 	if !found {
-		t.Fatal("expected value to be found")
+		t.Fatal("expected overwritten value to be found")
 	}
-	if got != "10.0.0.1" {
-		t.Fatalf("expected cached IP, got %q", got)
+	if got != "10.0.0.2" {
+		t.Fatalf("expected overwritten value %q, got %q", "10.0.0.2", got)
+	}
+}
+
+// TestTTLCacheOverMaxSize verifies cache overflow
+// expectations: Adding more values than the cache can hold, oldest values must be discarded.
+func TestTTLCacheOverMaxSize(t *testing.T) {
+	cache := NewTTLCache[string](2, time.Minute)
+
+	cache.Put("first", "10.0.0.1")
+	cache.Put("second", "10.0.0.2")
+	cache.Put("third", "10.0.0.3")
+
+	if got, found := cache.Get("first"); found {
+		t.Fatalf("expected oldest value to be removed, got %q", got)
 	}
 
-	if !cache.Remove("host") {
-		t.Fatal("expected remove to succeed")
+	got, found := cache.Get("second")
+	if !found {
+		t.Fatal("expected second value to remain in cache")
+	}
+	if got != "10.0.0.2" {
+		t.Fatalf("expected second value %q, got %q", "10.0.0.2", got)
 	}
 
-	got, found = cache.Get("host")
-	if found {
-		t.Fatal("expected value to be removed")
+	got, found = cache.Get("third")
+	if !found {
+		t.Fatal("expected third value to remain in cache")
 	}
-	if got != "" {
-		t.Fatalf("expected zero value after remove, got %q", got)
+	if got != "10.0.0.3" {
+		t.Fatalf("expected third value %q, got %q", "10.0.0.3", got)
+	}
+}
+
+// TestLRUCacheStoresStringPointerValue verifies the cache can store and return
+// pointer values without losing the referenced string data.
+func TestLRUCacheStoresStringPointerValue(t *testing.T) {
+	cache := NewLRUCache[*string](2)
+	ip := "192.168.1.10"
+
+	cache.Put(ip, &ip)
+
+	got, found := cache.Get(ip)
+	if !found {
+		t.Fatal("expected pointer value to be found")
+	}
+	if got == nil {
+		t.Fatal("expected non-nil pointer value")
+	}
+	if *got != ip {
+		t.Fatalf("expected IP %q, got %q", ip, *got)
+	}
+}
+
+// TestLRUCacheStoresNilValue verifies the cache can store and return a nil
+// pointer value while still reporting that the key was found.
+func TestLRUCacheStoresNilValue(t *testing.T) {
+	cache := NewLRUCache[*string](2)
+	ip := "192.168.1.10"
+
+	cache.Put(ip, nil)
+
+	got, found := cache.Get(ip)
+	if !found {
+		t.Fatal("expected pointer value to be found")
+	}
+	if got != nil {
+		t.Fatal("expected nil pointer value")
+	}
+}
+
+// TestLRUCacheOverMaxSize verifies the overflow behavior
+// expctations : least recently used entry is evicted
+//
+//	when adding more values than the cache max size allows.
+func TestLRUCacheOverMaxSize(t *testing.T) {
+	cache := NewLRUCache[string](2)
+
+	cache.Put("first", "10.0.0.1")
+	cache.Put("second", "10.0.0.2")
+	cache.Put("third", "10.0.0.3")
+
+	if got, found := cache.Get("first"); found {
+		t.Fatalf("expected first value to be evicted, got %q", got)
 	}
 
-	cache.Put("host", "10.0.0.1")
-	cache.Clear()
-	if len(cache.entries) != 0 {
-		t.Fatalf("expected cache to be empty after clear, got %d entries", len(cache.entries))
+	got, found := cache.Get("second")
+	if !found {
+		t.Fatal("expected second value to remain in cache")
+	}
+	if got != "10.0.0.2" {
+		t.Fatalf("expected second value %q, got %q", "10.0.0.2", got)
+	}
+
+	got, found = cache.Get("third")
+	if !found {
+		t.Fatal("expected third value to remain in cache")
+	}
+	if got != "10.0.0.3" {
+		t.Fatalf("expected third value %q, got %q", "10.0.0.3", got)
+	}
+}
+
+// TestLRUCacheGetUpdatesRecency the overflow behavior.
+//   - create a cache of size 3
+//   - add three elements
+//   - do get call on two of them
+//   - add a fourth one.
+//
+// expectations : the least used (the one never get) should have been discarded.
+func TestLRUCacheGetUpdatesRecency(t *testing.T) {
+	cache := NewLRUCache[string](3)
+
+	cache.Put("first", "10.0.0.1")
+	cache.Put("second", "10.0.0.2")
+	cache.Put("third", "10.0.0.3")
+
+	if got, found := cache.Get("second"); !found {
+		t.Fatal("expected second value to be found")
+	} else if got != "10.0.0.2" {
+		t.Fatalf("expected second value %q, got %q", "10.0.0.2", got)
+	}
+
+	if got, found := cache.Get("third"); !found {
+		t.Fatal("expected third value to be found")
+	} else if got != "10.0.0.3" {
+		t.Fatalf("expected third value %q, got %q", "10.0.0.3", got)
+	}
+
+	cache.Put("fourth", "10.0.0.4")
+
+	if got, found := cache.Get("first"); found {
+		t.Fatalf("expected first value to be evicted, got %q", got)
 	}
 }

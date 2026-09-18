@@ -42,7 +42,11 @@ import (
 	"context"
 	"database/sql"
 	"flag"
+	"log/slog"
+	"path/filepath"
 	"testing"
+
+	"github.com/oracle/go-oracledb/v26/internal/common"
 )
 
 // TestDriver_ConfigurationWithConnectorBasic verifies that a connector can be
@@ -154,7 +158,7 @@ func TestDriver_ConfigurationWithConnectorWithFlagOverwrite(t *testing.T) {
 // verifies that dsn have precedence over configuration
 // when credentials are specified in dsn, they cannot be present in configuration
 func TestDriver_ConfigurationWithCredentialsWithDsnNegative(t *testing.T) {
-
+	t.Parallel()
 	c := NewOracleDriverConfig()
 	c.Credentials.User = "foo"
 	c.Credentials.Password = "bar"
@@ -164,8 +168,7 @@ func TestDriver_ConfigurationWithCredentialsWithDsnNegative(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Should have receive an error")
 	}
-	t.Log("received an error", err.Error())
-
+	t.Log("received expected  error", err.Error())
 }
 
 // TestDriver_ConfigurationLogging dummy test to activate logging.
@@ -179,6 +182,35 @@ func TestDriver_ConfigurationLogging(t *testing.T) {
 	defer func() {
 		GetDefaultDriver().ApplyDriverLoggingConfig(NewOracleLoggingConfig())
 	}()
+}
+
+// TestDriver_ApplyDriverLoggingConfigPreservedByOpenConnector verifies that
+// opening a connector does not replace logging configured by the application.
+func TestDriver_ApplyDriverLoggingConfigPreservedByOpenConnector(t *testing.T) {
+	driver := NewDriver()
+	loggingConfig := NewOracleLoggingConfig()
+	loggingConfig.Destination = filepath.Join(t.TempDir(), "driver.log")
+	loggingConfig.Level = "DEBUG"
+	driver.ApplyDriverLoggingConfig(loggingConfig)
+	t.Cleanup(func() {
+		driver.ApplyDriverLoggingConfig(NewOracleLoggingConfig())
+	})
+
+	configuredLogger := common.Odl
+	if !configuredLogger.Enabled(context.Background(), slog.LevelDebug) {
+		t.Fatal("expected debug logging to be enabled after applying the configuration")
+	}
+
+	if _, err := driver.openConnector("localhost:1521/freepdb1"); err != nil {
+		t.Fatalf("openConnector failed: %v", err)
+	}
+
+	if common.Odl != configuredLogger {
+		t.Fatal("openConnector replaced the logging configuration")
+	}
+	if !common.Odl.Enabled(context.Background(), slog.LevelDebug) {
+		t.Fatal("expected debug logging configuration to remain enabled after openConnector")
+	}
 }
 
 type testingConnector struct {

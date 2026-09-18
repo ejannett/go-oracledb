@@ -39,13 +39,14 @@
 package common
 
 import (
+	"container/list"
 	"sync"
 	"time"
 )
 
 // Cache interface for cache mechanism in the go driver
 type Cache[T any] interface {
-	// Get gets a cached value referenced by key (non-nil).
+	// Get gets a cached value (including nullable ones) referenced by key (non-nil).
 	// returns the cached value and whether it was found.
 	Get(key string) (value T, found bool)
 	// Put puts a value into the cache referenced by non-nil key.
@@ -59,25 +60,33 @@ type Cache[T any] interface {
 	Clear()
 }
 
+// ttlCacheEntry stores a cached value within TTLCache.
 type ttlCacheEntry[T any] struct {
 	value T         // cached value
 	ctime time.Time // cached value creation time
 }
 
 // TTLCache is a cache implementation that has a fix size.
-// This caches stores value that are automatically evisted after a given TTL
+// This caches stores value that are automatically existed after a given TTL
 // when the cache become full the oldest element is remove to make room for
 // the new entry
 type TTLCache[T any] struct {
-	maxSize        int
-	ttl            time.Duration
-	nextExpiration time.Time
-	entries        map[string]ttlCacheEntry[T]
+	maxSize        int                         // max size of the cache
+	ttl            time.Duration               // TTL of cached entries
+	nextExpiration time.Time                   // time for the next cleanup to happen.
+	entries        map[string]ttlCacheEntry[T] // cached values
 }
 
+// NewTTLCache creates a TTLCache with the given maximum size and entry TTL.
+// It may return nil when maxSize is not positive or ttl is zero.
 func NewTTLCache[T any](maxSize int, ttl time.Duration) *TTLCache[T] {
 	if maxSize <= 0 {
-		// deal with error
+		Odl.Error("maxSize must be positive")
+		return nil
+	}
+	if ttl.Seconds() == 0 {
+		Odl.Error("TTL can't be zero")
+		return nil
 	}
 
 	return &TTLCache[T]{
@@ -95,6 +104,7 @@ func (c *TTLCache[T]) Get(key string) (value T, found bool) {
 	entry, ok := c.entries[key]
 	if !ok {
 		var zero T
+		Odl.Debug("cache miss", "key", key)
 		return zero, false
 	}
 
@@ -118,6 +128,7 @@ func (c *TTLCache[T]) Put(key string, value T) T {
 	}
 
 	if c.maxSize > 0 && len(c.entries) > c.maxSize {
+		Odl.Debug("cache overflow")
 		c.removeOldest()
 	}
 
@@ -138,6 +149,8 @@ func (c *TTLCache[T]) Clear() {
 	c.nextExpiration = time.Time{}
 }
 
+// removeExpired removes entries whose TTL has elapsed and updates the next
+// scheduled expiration time for the remaining entries.
 func (c *TTLCache[T]) removeExpired() {
 	now := time.Now()
 	var nextExpiration time.Time
@@ -176,11 +189,14 @@ func (c *TTLCache[T]) removeOldest() {
 	}
 
 	if !first {
+		Odl.Debug("oldest discarded", "key", oldestKey)
 		delete(c.entries, oldestKey)
 		c.recomputeNextExpiration()
 	}
 }
 
+// shouldRemoveExpired reports whether the cache has reached the next known
+// expiration time and should scan for expired entries.
 func (c *TTLCache[T]) shouldRemoveExpired() bool {
 	if c.nextExpiration.IsZero() {
 		return false
@@ -188,6 +204,8 @@ func (c *TTLCache[T]) shouldRemoveExpired() bool {
 	return !time.Now().Before(c.nextExpiration)
 }
 
+// recomputeNextExpiration recalculates the earliest expiration time across all
+// cached entries, or clears it when the cache is empty.
 func (c *TTLCache[T]) recomputeNextExpiration() {
 	if len(c.entries) == 0 {
 		c.nextExpiration = time.Time{}
@@ -207,9 +225,10 @@ func (c *TTLCache[T]) recomputeNextExpiration() {
 	c.nextExpiration = next
 }
 
+// SafeTTLCache Thread-safe version of the TTLCache
 type SafeTTLCache[T any] struct {
 	TTLCache[T]
-	lock sync.Mutex
+	lock sync.RWMutex
 }
 
 func (c *SafeTTLCache[T]) Get(key string) (value T, found bool) {
@@ -234,4 +253,148 @@ func (c *SafeTTLCache[T]) Clear() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.TTLCache.Clear()
+}
+
+// NewSafeTTLCache creates a SafeTTLCache, A thread-safe version of TTLCache.
+// parameters and returns : see NewTTLCache()
+func NewSafeTTLCache[T any](maxSize int, ttl time.Duration) *SafeTTLCache[T] {
+	ttlCache := NewTTLCache[T](maxSize, ttl)
+	if ttlCache == nil {
+		return nil
+	}
+	newC := &SafeTTLCache[T]{
+		TTLCache: *ttlCache,
+		lock:     sync.RWMutex{},
+	}
+	return newC
+}
+
+type lruCacheEntry[T any] struct {
+	key   string
+	value T
+}
+
+// LRUCache implements Cache using least-recently-used eviction.
+type LRUCache[T any] struct {
+	maxSize int
+	entries map[string]*list.Element
+	order   *list.List
+}
+
+// NewLRUCache creates an LRUCache with the given maximum size.
+// It returns nil when maxSize is not positive.
+func NewLRUCache[T any](maxSize int) *LRUCache[T] {
+	if maxSize <= 0 {
+		Odl.Error("maxSize must be positive")
+		return nil
+	}
+
+	return &LRUCache[T]{
+		maxSize: maxSize,
+		entries: make(map[string]*list.Element),
+		order:   list.New(),
+	}
+}
+
+// Get returns the cached value for key and marks the entry as recently used.
+func (c *LRUCache[T]) Get(key string) (value T, found bool) {
+	element, ok := c.entries[key]
+	if !ok {
+		var zero T
+		return zero, false
+	}
+
+	c.order.MoveToFront(element)
+	return element.Value.(lruCacheEntry[T]).value, true
+}
+
+// Put adds or replaces a cached value and marks the entry as recently used.
+// It returns the previous value for key, or the zero value when key is new.
+func (c *LRUCache[T]) Put(key string, value T) T {
+	// Existing keys are updated in place and promoted to most recently used.
+	if element, ok := c.entries[key]; ok {
+		entry := element.Value.(lruCacheEntry[T])
+		previous := entry.value
+		entry.value = value
+		element.Value = entry
+		c.order.MoveToFront(element)
+		return previous
+	}
+
+	// New keys are inserted at the front of the recency list.
+	element := c.order.PushFront(lruCacheEntry[T]{
+		key:   key,
+		value: value,
+	})
+	c.entries[key] = element
+
+	// Evict the least recently used entry when the cache exceeds its capacity.
+	if c.order.Len() > c.maxSize {
+		Odl.Debug("cache overflow")
+		c.removeOldest()
+	}
+
+	// New keys do not have a previous value.
+	var zero T
+	return zero
+}
+
+// Remove deletes a cached value by key and reports whether an entry was removed.
+func (c *LRUCache[T]) Remove(key string) bool {
+	element, ok := c.entries[key]
+	if !ok {
+		return false
+	}
+
+	c.order.Remove(element)
+	delete(c.entries, key)
+	return true
+}
+
+// Clear removes all values from the cache.
+func (c *LRUCache[T]) Clear() {
+	clear(c.entries)
+	c.order.Init()
+}
+
+// removeOldest evicts the least-recently-used cache entry.
+func (c *LRUCache[T]) removeOldest() {
+	element := c.order.Back()
+	if element == nil {
+		return
+	}
+
+	entry := element.Value.(lruCacheEntry[T])
+	delete(c.entries, entry.key)
+	c.order.Remove(element)
+}
+
+// SafeLRUCache Thread-safe version of the TTLCache
+type SafeLRUCache[T any] struct {
+	LRUCache[T]
+	lock sync.RWMutex
+}
+
+func (c *SafeLRUCache[T]) Get(key string) (value T, found bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.LRUCache.Get(key)
+}
+
+func (c *SafeLRUCache[T]) Put(key string, value T) T {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.LRUCache.Put(key, value)
+}
+
+func (c *SafeLRUCache[T]) Remove(key string) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.LRUCache.Remove(key)
+}
+
+func (c *SafeLRUCache[T]) Clear() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.LRUCache.Clear()
 }

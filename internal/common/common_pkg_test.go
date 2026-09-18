@@ -59,7 +59,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestCategoryExecutor(t *testing.T) {
-	oracleTest.RunCategoryExecutor(t, oracleTest.TestCategory, testCases)
+	oracleTest.RunCategoryExecutor(t, oracleTest.TestCategories, testCases)
 }
 
 type Version = oracleTest.Version
@@ -89,7 +89,15 @@ var testCases = []oracleTest.CategorizedTestCase{
 	{Name: "TestProviderRegistryRegisterProviderEvictsOldestWhenCapacityExceeded", Categories: "unitary", Exclusive: false, Fn: TestProviderRegistryRegisterProviderEvictsOldestWhenCapacityExceeded},
 	{Name: "TestProviderRegistryGetProviderReturnsRequestedInterface", Categories: "unitary", Exclusive: false, Fn: TestProviderRegistryGetProviderReturnsRequestedInterface},
 	{Name: "TestProviderRegistryGetProviderReturnsErrorWhenUninitialized", Categories: "unitary", Exclusive: false, Fn: TestProviderRegistryGetProviderReturnsErrorWhenUninitialized},
-	{Name: "TestNewTTLCache", Categories: "unitary", Exclusive: false, Fn: TestNewTTLCache},
 	{Name: "TestTTLCacheStoresStringPointerValue", Categories: "unitary", Exclusive: false, Fn: TestTTLCacheStoresStringPointerValue},
-	{Name: "TestSafeTTLCacheDelegatesToTTLCache", Categories: "unitary", Exclusive: false, Fn: TestSafeTTLCacheDelegatesToTTLCache},
+	{Name: "TestLRUCacheStoresStringPointerValue", Categories: "unitary", Exclusive: false, Fn: TestLRUCacheStoresStringPointerValue},
+	{Name: "TestLRUCacheStoresNilValue", Categories: "unitary", Exclusive: false, Fn: TestLRUCacheStoresNilValue},
+	{Name: "TestLRUCacheOverMaxSize", Categories: "unitary", Exclusive: false, Fn: TestLRUCacheOverMaxSize},
+	{Name: "TestLRUCacheGetUpdatesRecency", Categories: "unitary", Exclusive: false, Fn: TestLRUCacheGetUpdatesRecency},
+	{Name: "TestTTLCacheExpiresEntriesIndependently", Categories: "unitary", Exclusive: false, Fn: TestTTLCacheExpiresEntriesIndependently},
+	{Name: "TestTTLCacheRemovesAllExpiredEntries", Categories: "unitary", Exclusive: false, Fn: TestTTLCacheRemovesAllExpiredEntries},
+	{Name: "TestProviderRegistrySupportsConcreteGenericType", Categories: "unitary", Exclusive: false, Fn: TestProviderRegistrySupportsConcreteGenericType},
+	{Name: "TestRegistryGetAllReturnsSnapshotInRegistrationOrder", Categories: "unitary", Exclusive: false, Fn: TestRegistryGetAllReturnsSnapshotInRegistrationOrder},
+	{Name: "TestRegistryGetAllReturnsEmptySnapshotWhenUninitialized", Categories: "unitary", Exclusive: false, Fn: TestRegistryGetAllReturnsEmptySnapshotWhenUninitialized},
+	{Name: "TestRegistryGetSkipsNilItems", Categories: "unitary", Exclusive: false, Fn: TestRegistryGetSkipsNilItems},
 }
