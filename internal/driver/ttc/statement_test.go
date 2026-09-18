@@ -118,7 +118,7 @@ func TestConnection_cancelCurrentExecution(t *testing.T) {
 			err := conn.cancelCurrentExecution(ctx)
 
 			if ns.cancelCalls.Load() != 1 {
-				t.Errorf("Wrong number of calls to CancelOperations expected 1 but was %d", ns.cancelCalls)
+				t.Errorf("Wrong number of calls to CancelOperations expected 1 but was %d", ns.cancelCalls.Load())
 			}
 			if (err != nil) != tt.wantErr {
 				t.Errorf("cancelCurrentExecution() error = %v, wantErr %v", err, tt.wantErr)

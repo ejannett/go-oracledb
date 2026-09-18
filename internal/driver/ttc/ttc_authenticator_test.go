@@ -138,7 +138,7 @@ func TestPasswordAuthenticator_doOSESSKEY_Golden(t *testing.T) {
 	if len(sessionProperties.GetProperty("AUTH_VFR_DATA").(*driverCommon.KeyValue).Value) == 0 {
 		t.Error("salt is empty")
 	}
-	
+
 }
 
 // TestPasswordAuthenticator_doOAuth_Golden
