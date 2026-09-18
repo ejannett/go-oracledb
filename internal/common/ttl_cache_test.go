@@ -39,6 +39,8 @@
 package common
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 )
@@ -315,4 +317,61 @@ func TestLRUCacheGetUpdatesRecency(t *testing.T) {
 	if got, found := cache.Get("first"); found {
 		t.Fatalf("expected first value to be evicted, got %q", got)
 	}
+}
+
+func deleteWorker(t *testing.T, iterationCount int, cache Cache[string]) {
+	t.Helper()
+	for j := 0; j < iterationCount; j++ {
+		key := fmt.Sprintf("k%d", j%25)
+		value := fmt.Sprintf("v%d", j)
+
+		cache.Put(key, value)
+
+		if j%10 == 0 {
+			cache.Remove(key)
+		}
+
+		if j%100 == 0 {
+			cache.Clear()
+		}
+	}
+}
+func getWorker(t *testing.T, iterationCount int, cache Cache[string]) {
+	t.Helper()
+	for j := 0; j < iterationCount; j++ {
+		key := fmt.Sprintf("k%d", j%25)
+		value := fmt.Sprintf("v%d", j)
+		cache.Put(key, value)
+		cache.Get(key)
+	}
+}
+
+func TestSafeLRUCacheConcurrency(t *testing.T) {
+	cacheConcurrency(t, NewSafeLRUCache[string](20))
+}
+
+func TestSafeTTLCacheConcurrency(t *testing.T) {
+	cacheConcurrency(t, NewSafeTTLCache[string](20, 3*time.Second))
+}
+
+func cacheConcurrency(t *testing.T, cache Cache[string]) {
+	t.Helper()
+	var workersCount = 20
+	var iterations = 1000
+
+	var wg sync.WaitGroup
+	wg.Add(workersCount)
+	for i := 0; i < workersCount; i++ {
+		go func(flag int) {
+			defer wg.Done()
+			if flag == 0 {
+				deleteWorker(t, iterations, cache)
+			} else {
+				getWorker(t, iterations, cache)
+			}
+
+		}(i % 5)
+	}
+
+	wg.Wait()
 }
