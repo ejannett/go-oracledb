@@ -225,9 +225,8 @@ func (nt *nttcps) Clear() {
 }
 
 func (nt *nttcps) Disconnect() error {
-	err := nt.nttcp.Disconnect()
-	nt.tcpStream = nil
-	return err
+	common.Odl.Debug("disconnecting TCPS adapter")
+	return nt.nttcp.Disconnect()
 }
 
 // Process the PEM wallet
