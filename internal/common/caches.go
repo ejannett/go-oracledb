@@ -84,7 +84,7 @@ func NewTTLCache[T any](maxSize int, ttl time.Duration) *TTLCache[T] {
 		Odl.Error("maxSize must be positive")
 		return nil
 	}
-	if ttl.Seconds() == 0 {
+	if ttl.Seconds() <= 0 {
 		Odl.Error("TTL can't be zero")
 		return nil
 	}
@@ -227,32 +227,32 @@ func (c *TTLCache[T]) recomputeNextExpiration() {
 
 // SafeTTLCache Thread-safe version of the TTLCache
 type SafeTTLCache[T any] struct {
-	TTLCache[T]
-	lock sync.Mutex
+	cache TTLCache[T]
+	lock  sync.Mutex
 }
 
 func (c *SafeTTLCache[T]) Get(key string) (value T, found bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	return c.TTLCache.Get(key)
+	return c.cache.Get(key)
 }
 
 func (c *SafeTTLCache[T]) Put(key string, value T) T {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	return c.TTLCache.Put(key, value)
+	return c.cache.Put(key, value)
 }
 
 func (c *SafeTTLCache[T]) Remove(key string) bool {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	return c.TTLCache.Remove(key)
+	return c.cache.Remove(key)
 }
 
 func (c *SafeTTLCache[T]) Clear() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.TTLCache.Clear()
+	c.cache.Clear()
 }
 
 // NewSafeTTLCache creates a SafeTTLCache, A thread-safe version of TTLCache.
@@ -263,8 +263,8 @@ func NewSafeTTLCache[T any](maxSize int, ttl time.Duration) *SafeTTLCache[T] {
 		return nil
 	}
 	newC := &SafeTTLCache[T]{
-		TTLCache: *ttlCache,
-		lock:     sync.Mutex{},
+		cache: *ttlCache,
+		lock:  sync.Mutex{},
 	}
 	return newC
 }
@@ -371,32 +371,32 @@ func (c *LRUCache[T]) removeOldest() {
 
 // SafeLRUCache Thread-safe version of the TTLCache
 type SafeLRUCache[T any] struct {
-	LRUCache[T]
-	lock sync.Mutex
+	cache LRUCache[T]
+	lock  sync.Mutex
 }
 
 func (c *SafeLRUCache[T]) Get(key string) (value T, found bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	return c.LRUCache.Get(key)
+	return c.cache.Get(key)
 }
 
 func (c *SafeLRUCache[T]) Put(key string, value T) T {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	return c.LRUCache.Put(key, value)
+	return c.cache.Put(key, value)
 }
 
 func (c *SafeLRUCache[T]) Remove(key string) bool {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	return c.LRUCache.Remove(key)
+	return c.cache.Remove(key)
 }
 
 func (c *SafeLRUCache[T]) Clear() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.LRUCache.Clear()
+	c.cache.Clear()
 }
 
 func NewSafeLRUCache[T any](maxSize int) *SafeLRUCache[T] {
@@ -405,8 +405,8 @@ func NewSafeLRUCache[T any](maxSize int) *SafeLRUCache[T] {
 		return nil
 	}
 	newC := &SafeLRUCache[T]{
-		LRUCache: *cache,
-		lock:     sync.Mutex{},
+		cache: *cache,
+		lock:  sync.Mutex{},
 	}
 	return newC
 }
