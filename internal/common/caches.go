@@ -228,7 +228,7 @@ func (c *TTLCache[T]) recomputeNextExpiration() {
 // SafeTTLCache Thread-safe version of the TTLCache
 type SafeTTLCache[T any] struct {
 	TTLCache[T]
-	lock sync.RWMutex
+	lock sync.Mutex
 }
 
 func (c *SafeTTLCache[T]) Get(key string) (value T, found bool) {
@@ -264,7 +264,7 @@ func NewSafeTTLCache[T any](maxSize int, ttl time.Duration) *SafeTTLCache[T] {
 	}
 	newC := &SafeTTLCache[T]{
 		TTLCache: *ttlCache,
-		lock:     sync.RWMutex{},
+		lock:     sync.Mutex{},
 	}
 	return newC
 }
@@ -372,7 +372,7 @@ func (c *LRUCache[T]) removeOldest() {
 // SafeLRUCache Thread-safe version of the TTLCache
 type SafeLRUCache[T any] struct {
 	LRUCache[T]
-	lock sync.RWMutex
+	lock sync.Mutex
 }
 
 func (c *SafeLRUCache[T]) Get(key string) (value T, found bool) {
@@ -397,4 +397,16 @@ func (c *SafeLRUCache[T]) Clear() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.LRUCache.Clear()
+}
+
+func NewSafeLRUCache[T any](maxSize int) *SafeLRUCache[T] {
+	cache := NewLRUCache[T](maxSize)
+	if cache == nil {
+		return nil
+	}
+	newC := &SafeLRUCache[T]{
+		LRUCache: *cache,
+		lock:     sync.Mutex{},
+	}
+	return newC
 }
