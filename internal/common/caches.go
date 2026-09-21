@@ -321,7 +321,7 @@ func (c *LRUCache[T]) Put(key string, value T) T {
 		return previous
 	}
 
-	// New keys are inserted at the front of the recency list.
+	// New keys are inserted at the front of the list.
 	element := c.order.PushFront(lruCacheEntry[T]{
 		key:   key,
 		value: value,
