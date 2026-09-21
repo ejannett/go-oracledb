@@ -118,6 +118,11 @@ func (c *TTLCache[T]) Put(key string, value T) T {
 		previous = entry.value
 	}
 
+	if len(c.entries) == c.maxSize {
+		Odl.Debug("cache overflow")
+		c.removeOldest()
+	}
+
 	c.entries[key] = ttlCacheEntry[T]{
 		value: value,
 		ctime: now,
@@ -125,11 +130,6 @@ func (c *TTLCache[T]) Put(key string, value T) T {
 	expiresAt := now.Add(c.ttl)
 	if c.nextExpiration.IsZero() || expiresAt.Before(c.nextExpiration) {
 		c.nextExpiration = expiresAt
-	}
-
-	if c.maxSize > 0 && len(c.entries) > c.maxSize {
-		Odl.Debug("cache overflow")
-		c.removeOldest()
 	}
 
 	return previous
@@ -321,18 +321,18 @@ func (c *LRUCache[T]) Put(key string, value T) T {
 		return previous
 	}
 
+	// Evict the least recently used entry when the cache exceeds its capacity.
+	if c.order.Len() == c.maxSize {
+		Odl.Debug("cache overflow")
+		c.removeOldest()
+	}
+
 	// New keys are inserted at the front of the list.
 	element := c.order.PushFront(lruCacheEntry[T]{
 		key:   key,
 		value: value,
 	})
 	c.entries[key] = element
-
-	// Evict the least recently used entry when the cache exceeds its capacity.
-	if c.order.Len() > c.maxSize {
-		Odl.Debug("cache overflow")
-		c.removeOldest()
-	}
 
 	// New keys do not have a previous value.
 	var zero T
