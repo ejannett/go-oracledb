@@ -156,6 +156,15 @@ type OracleConnectionProperties struct {
 
 	// UseSNI enables Server Name Indication (SNI) for TLS connections.
 	UseSNI bool `ns_name:"USE_SNI" default:"false" validator:"validateBoolean" help:"enables Server Name Indication (SNI) for TLS connections"`
+
+	ServerType string `ns_name:"server" default:"" help:"sets the remote server type (POOLED|DEDICATED|SHARED)"`
+	
+}
+
+type DatabaseResidentConnectionPooling struct {
+	Class      string
+	Purity     enum NEW | SELF                  // Default: SELF
+	Boundaries enum STATEMENT | TRANSACTION
 }
 
 // String implements the Stringer interface
