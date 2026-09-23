@@ -40,6 +40,7 @@ package common
 
 import "github.com/oracle/go-oracledb/v26/internal/common"
 
+// TODO : remove this duplication
 type DriverProperties interface {
 	IsStrictNullValueHandling() bool
 	GetDefaultLobPrefetchSize() int
@@ -120,8 +121,8 @@ func (s *Shelf[T]) UpdateConnectionProperties(props DriverProperties) *Shelf[T] 
 	return s
 }
 
-// GetConnectionProperties retrieves the connection properties stored on the Shelf.
-func (s *Shelf[T]) GetConnectionProperties() DriverProperties {
+// GetDriverProperties retrieves the connection properties stored on the Shelf.
+func (s *Shelf[T]) GetDriverProperties() DriverProperties {
 	return s.connectionProperties
 }
 

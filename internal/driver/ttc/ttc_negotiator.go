@@ -293,7 +293,7 @@ func _createAndRegisterMarshaller(
 		mar = NewMarshalEngine(buf, driverCommon.BIG_ENDIAN, [5]byte{Native, Universal, Universal, Universal, Universal})
 		common.Odl.Debug("connectionNegotiator: Creating TTC Marshaller")
 	}
-	if props := shelf.GetConnectionProperties(); props != nil {
+	if props := shelf.GetDriverProperties(); props != nil {
 		if marshalEngine, ok := mar.(*MarshalEngine); ok {
 			marshalEngine.setDefaultLobPrefetchSize(int64(props.GetDefaultLobPrefetchSize()))
 		}

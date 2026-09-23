@@ -233,6 +233,7 @@ func (pa *passwordAuthenticator) _doOAuth(ctx context.Context) error {
 	}
 
 	sessionProperties := pa._sessionContext.GetSessionProperties()
+	clientProperties := pa._sessionContext.GetClientProperties()
 
 	oauthMsg.(*oAuth).setEncryptedSK(sessionProperties.GetProperty(authSesskey).(*driverCommon.KeyValue).Value)
 	oauthMsg.(*oAuth).setSalt(sessionProperties.GetProperty(authVFRData).(*driverCommon.KeyValue).Value)
@@ -275,6 +276,16 @@ func (pa *passwordAuthenticator) _doOAuth(ctx context.Context) error {
 	oauthMsg.(*oAuth).setHasO5LNPSupport(shelf.GetCapabilities()[kztvovKpclogO5lNp].IsSet)
 	oauthMsg.(*oAuth).setHasO7LMRSupport(shelf.GetCapabilities()[kztvovKpclogO7lMr].IsSet)
 	oauthMsg.(*oAuth).setBUseO5Logon(sessionProperties.ContainsKey(authVFRData))
+
+	if clientProperties.ContainsKey(AuthKpplConnClass) {
+		oauthMsg.(*oAuth).setDrcpConnectionClass(
+			driverCommon.B1Array(clientProperties.GetProperty(AuthKpplConnClass).(string)))
+		if clientProperties.ContainsKey(AuthKpplPurity) {
+			oauthMsg.(*oAuth).setDrcpPurity(
+				driverCommon.B1Array(clientProperties.GetProperty(AuthKpplPurity).(string)))
+		}
+	}
+
 	oauthMsg.(*oAuth).setLogonMode(pa._logonMode)
 	if common.KpzLogonSysdba.Enabled(pa._logonMode) && len(pa._password) == 0 {
 		common.Odl.Debug("KpzLogonSysdba mode, skip _oSessionKeyInit of o response")

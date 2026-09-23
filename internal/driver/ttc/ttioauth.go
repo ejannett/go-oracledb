@@ -83,7 +83,7 @@ const (
 	authACL           = "AUTH_ACL"
 	authSid           = "AUTH_SID"
 
-	authSessionId = "AUTH_SESSION_ID"
+	authSessionId     = "AUTH_SESSION_ID"
 	authSessionSerial = "AUTH_SERIAL_NUM"
 
 	authSessionClientDrvnm = "SESSION_CLIENT_DRIVER_NAME"
@@ -138,6 +138,9 @@ const (
 	authNlsLxcTtznfm    = "AUTH_NLS_LXCTTZNFM"
 	authNlsLxcStznfm    = "AUTH_NLS_LXCSTZNFM"
 
+	AuthKpplConnClass = "AUTH_KPPL_CONN_CLASS"
+	AuthKpplPurity    = "AUTH_KPPL_PURITY"
+
 	// Additional SESSION_* NLS keys used by server piggybacks (OCSSYNC)
 	sessionNlsLxcCharset   = "SESSION_NLS_LXCCHARSET"
 	sessionNlsLxcNlsLenSem = "SESSION_NLS_LXCNLSLENSEM"
@@ -178,6 +181,8 @@ type oAuth struct {
 	connectString           []byte
 	_hasO5LNPSupport        bool
 	_hasO7LMRSupport        bool
+	connectionClass         driverCommon.B1Array
+	connectionPurity        driverCommon.B1Array
 }
 
 // NewOAuth creates a new Oracle Authentication (OAUTH) TTC message with the legacy
@@ -398,6 +403,7 @@ func (o *oAuth) prepareForOAUTH(luser driverCommon.B1Array,
 	o.setVSessionKeyValsForOAUTH()
 	o.setAlterSessionKeyValsForOAUTH()
 	o.setDriverIdentityKeyValsForOAUTH()
+	o.setDRCPKeyValsForOAUTH()
 
 	return nil
 }
@@ -412,6 +418,7 @@ func (o *oAuth) prepareForTokenOAUTH(luser driverCommon.B1Array) {
 	o.setVSessionKeyValsForOAUTH()
 	o.setAlterSessionKeyValsForOAUTH()
 	o.setDriverIdentityKeyValsForOAUTH()
+	o.setDRCPKeyValsForOAUTH()
 }
 
 // Initializes logonMode before executing an oauth call.
@@ -498,6 +505,14 @@ func (o *oAuth) setVSessionKeyValsForOAUTH() {
 	}
 
 	o.keyValList.PushBackList(_keyValStaticInfoForOAuth2)
+}
+
+var _drcpClassNameKey = driverCommon.StringToB1Array(AuthKpplConnClass)
+var _drcpPurityKey = driverCommon.StringToB1Array(AuthKpplPurity)
+
+func (o *oAuth) setDRCPKeyValsForOAUTH() {
+	o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpClassNameKey, Value: o.connectionClass})
+	o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpPurityKey, Value: o.connectionPurity})
 }
 
 var _authOraEditionKey = driverCommon.StringToB1Array(authOraEdition)
@@ -665,6 +680,16 @@ func (o *oAuth) setConnectString(connectString string) {
 // see KpzLogonSysdba KpzLogonSysoper
 func (o *oAuth) setLogonMode(mode int64) {
 	o.logonMode = mode
+}
+
+// setDrcpConnectionClass sets the DRCP connecton class of this oauth
+func (o *oAuth) setDrcpConnectionClass(class driverCommon.B1Array) {
+	o.connectionClass = class
+}
+
+// setDrcpPurity sets the DRCP connecton class of this oauth
+func (o *oAuth) setDrcpPurity(purity driverCommon.B1Array) {
+	o.connectionPurity = purity
 }
 
 // ---- oauth Function Reply (TTIRPA) Message ----

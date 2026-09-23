@@ -147,7 +147,7 @@ func (drv *Driver) openConnector(dsn string) (driver.Connector, error) {
 	_initLoggingOnce.Do(func() {
 		// This is delayed until now because we cannot assume the start sequence of the application.
 		// Doing this in init() may end up defining flags after the CLI has been parsed.
-		common.InitLoggingWithConfig(nil)
+		common.InitLoggingWithConfig(NewOracleLoggingConfig())
 	})
 
 	var confToUse *oracleconfig.OracleDriverConfig
@@ -231,7 +231,16 @@ func (drv *Driver) openConnector(dsn string) (driver.Connector, error) {
 	// let network layer parse it now.
 	// build again a Data Source Name that network layer can understand
 	// TODO: make network layer use the same and do not parse again.
-	parsed, err := naming.ParseDSNString(fmt.Sprintf("%s?%s", connectDescriptor, confToUse.ToNSConnectionParameters()))
+	// TODO : cleanup handle of serverType
+	var parsed *naming.ParsedConfig
+	var err error
+	if confToUse.ConnectionProperties.ServerType != "" {
+		// server type is not treated as query parameter. otherwise it will be ignored
+		parsed, err = naming.ParseDSNString(fmt.Sprintf("%s:%s?%s", connectDescriptor,
+			confToUse.ConnectionProperties.ServerType, confToUse.ToNSConnectionParameters()))
+	} else {
+		parsed, err = naming.ParseDSNString(fmt.Sprintf("%s?%s", connectDescriptor, confToUse.ToNSConnectionParameters()))
+	}
 	if err != nil {
 		common.Odl.Debug("Failed  to parse DNS", "err", err)
 		return nil, err

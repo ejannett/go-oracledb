@@ -136,7 +136,7 @@ func TestGetConnection(t *testing.T) {
 				},
 				authenticator:       &mockAuthenticator{err: tt.authErr},
 				ns:                  ns,
-				drvierConfig:        oracleconfig,
+				driverConfig:        oracleconfig,
 				localizationService: common.NewLocalizationService(language.English),
 				newConnectionFunc: func(_ context.Context, shelf *ttiShelf[driverCommon.MessageType], sessCtx *driverCommon.SessionContext, ns driverCommon.NetworkSession) (*connection, error) {
 					return newTestConnection(shelf, sessCtx, ns), nil
@@ -198,7 +198,7 @@ func TestGetConnectionMissingLocalizationService(t *testing.T) {
 		newConnectionFunc: func(_ context.Context, shelf *ttiShelf[driverCommon.MessageType], sessCtx *driverCommon.SessionContext, ns driverCommon.NetworkSession) (*connection, error) {
 			return newTestConnection(shelf, sessCtx, ns), nil
 		},
-		drvierConfig:        oracleconfig,
+		driverConfig:        oracleconfig,
 		localizationService: nil,
 	}
 

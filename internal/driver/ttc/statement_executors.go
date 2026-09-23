@@ -457,7 +457,7 @@ Panics / assumptions:
 */
 func (e *statementExecutorSelect) prepareDefines(messageToBeExecuted driverCommon.Message[driverCommon.MessageType]) {
 	defines := make([]driverCommon.Marshallable, len(e.resultMetadata.columns))
-	connectionProperties := e.shelf.GetConnectionProperties()
+	connectionProperties := e.shelf.GetDriverProperties()
 	for i, colContext := range e.resultMetadata.columns {
 		defines[i] = e.shelf.GetCodecFactory().getDefineOac(colContext.DataType, colContext, connectionProperties)
 	}
