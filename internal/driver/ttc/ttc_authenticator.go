@@ -277,12 +277,12 @@ func (pa *passwordAuthenticator) _doOAuth(ctx context.Context) error {
 	oauthMsg.(*oAuth).setHasO7LMRSupport(shelf.GetCapabilities()[kztvovKpclogO7lMr].IsSet)
 	oauthMsg.(*oAuth).setBUseO5Logon(sessionProperties.ContainsKey(authVFRData))
 
-	if clientProperties.ContainsKey(AuthKpplConnClass) {
+	if shelf.GetDriverConfig().ConnectionProperties.Drcp.Class != "" {
 		oauthMsg.(*oAuth).setDrcpConnectionClass(
-			driverCommon.B1Array(clientProperties.GetProperty(AuthKpplConnClass).(string)))
+			driverCommon.B1Array(shelf.GetDriverConfig().ConnectionProperties.Drcp.Class))
 		if clientProperties.ContainsKey(AuthKpplPurity) {
 			oauthMsg.(*oAuth).setDrcpPurity(
-				driverCommon.B1Array(clientProperties.GetProperty(AuthKpplPurity).(string)))
+				driverCommon.B1Array(shelf.GetDriverConfig().ConnectionProperties.Drcp.Purity))
 		}
 	}
 

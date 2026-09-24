@@ -119,18 +119,8 @@ func (connInstantiator *connectionInstantiator) GetConnection(ctx context.Contex
 	sessCtx.GetClientProperties().SetProperty(driverCommon.RemotePort, connInstantiator.ns.GetRemotePort())
 	sessCtx.GetClientProperties().SetProperty(driverCommon.ConnectDescriptor, connInstantiator.driverConfig.ConnectDescriptor)
 
-	// Add properties for DRCP
-	if connInstantiator.driverConfig.ConnectionProperties.ServerType == common.ServerTypePooled {
-		sessCtx.GetClientProperties().SetProperty(
-			AuthKpplConnClass, connInstantiator.driverConfig.ConnectionProperties.Drcp.Class)
-		if len(connInstantiator.driverConfig.ConnectionProperties.Drcp.Purity) > 0 {
-			sessCtx.GetClientProperties().SetProperty(
-				AuthKpplPurity, connInstantiator.driverConfig.ConnectionProperties.Drcp.Purity)
-		}
-	}
-
 	// Add connection properties to shelf for downstream consumers
-	shelf.UpdateConnectionProperties(connInstantiator.driverConfig.DriverProperties)
+	shelf.UpdateDriverConfig(connInstantiator.driverConfig)
 	shelf.RegisterLocalizationService(connInstantiator.localizationService)
 	shelf.registerProviderRegistry(connInstantiator.providerRegistry)
 

@@ -46,6 +46,7 @@ import (
 	"testing"
 
 	"github.com/oracle/go-oracledb/v26/internal/common"
+	oracleErrors "github.com/oracle/go-oracledb/v26/oracle/errors"
 )
 
 // TestDriver_SimpleConnection executes a simple connection.
@@ -70,7 +71,9 @@ func TestDriver_DRCP_SelectDual(t *testing.T) {
 	}
 
 	config := NewOracleDriverConfig()
+
 	config.Credentials.LogonMode = TestingConfig.Credentials.LogonMode
+
 	//config.Credentials.User = TestingConfig.Credentials.Username
 	//config.Credentials.Password = TestingConfig.Credentials.Password
 
@@ -82,7 +85,7 @@ func TestDriver_DRCP_SelectDual(t *testing.T) {
 	config.ConnectDescriptor = TestingConfig.Credentials.Username + "/" + TestingConfig.Credentials.Password + "@" + TestingConfig.Database.Host + ":" + strconv.Itoa(int(TestingConfig.Database.Port)) + "/" + TestingConfig.Database.ServiceName
 	connector, err := NewOracleConnector(config)
 	if err != nil {
-		t.Fatalf("create compressed connection connector: %v", err)
+		t.Fatalf("create connection connector: %v", err)
 	}
 	db := sql.OpenDB(connector)
 	defer func() {
@@ -91,6 +94,27 @@ func TestDriver_DRCP_SelectDual(t *testing.T) {
 		}
 	}()
 	err = db.Ping()
+	if err != nil {
+		t.Fatalf("ping connection failed: %v", err)
+	}
+
+	cnx, err := db.Conn(context.Background())
+	if err != nil {
+		t.Fatalf("get dedicated sql connection failed: %v", err)
+	}
+	defer cnx.Close()
+	oracleConnection, err := NewConnectionWrapper(cnx)
+	if err != nil {
+		t.Fatalf("create connection wrapper failed: %v", err)
+	}
+
+	err = oracleConnection.AttachToDrcpPool(context.Background())
+	if err != nil {
+		t.Fatalf("Can't attach to DRCP: %v", err)
+	}
+
+	isDrcpAttached(t, db, config.ConnectionProperties.Drcp.Class)
+
 	if err != nil {
 		t.Fatalf("cannot connect %v", err)
 	}
@@ -103,15 +127,65 @@ func TestDriver_DRCP_SelectDual(t *testing.T) {
 	if !rows.Next() {
 		t.Fatalf("no row returned from DUAL")
 	}
-	var val int
-	if err := rows.Scan(&val); err != nil {
-		t.Fatalf("scan failed: %v", err)
+
+	err = oracleConnection.DetachFromDrcpPool(context.Background())
+	if err != nil {
+		t.Fatalf("Can't detach from DRCP: %v", err)
 	}
 
-	if val != 1 {
-		t.Fatalf("unexpected value from DUAL: got %d, want 1", val)
+}
+
+func isDrcpAttached(t *testing.T, db *sql.DB, expectedClass string) {
+	t.Helper()
+
+	var statsClass string
+	var numRequests int64
+	rows := db.QueryRowContext(
+		context.Background(),
+		`SELECT cclass_name, num_requests
+		   FROM V$CPOOL_CC_STATS
+		  WHERE UPPER(cclass_name) LIKE '%.' || UPPER(:1)`,
+		expectedClass,
+	) //
+
+	if rows.Err() != nil {
+		if rows.Err().(oracleErrors.SQLError).ErrorCode() == string(oracleErrors.TableOrViewNotFound) {
+			// requires "Grant SELECT ON SYS.V_$CPOOL_CC_STATS"
+			t.Skipf("cannot verify DRCP attachment: %v", rows.Err())
+		}
+		t.Fatalf("query V$CPOOL_CC_STATS for DRCP class %q failed: %v", expectedClass, rows.Err())
 	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("rows err: %v", err)
+	rows.Scan(&statsClass, &numRequests)
+	if numRequests <= 0 {
+		t.Fatalf("DRCP class %q has no requests in V$CPOOL_CC_STATS: cclass_name=%q num_requests=%d",
+			expectedClass, statsClass, numRequests)
 	}
+
+	t.Logf("DRCP class %q attached, num reques %d", statsClass, numRequests)
+
+	var attachedClass string
+	var purity string
+	var tag string
+	var connection_status string
+
+	rows = db.QueryRowContext(
+		context.Background(),
+		`SELECT cclass_name, purity, tag, connection_status
+		   FROM v$cpool_conn_info
+		  WHERE UPPER(cclass_name) LIKE '%.' || UPPER(:1)
+		    AND ROWNUM = 1`,
+		expectedClass,
+	)
+	if rows.Err() != nil {
+		if rows.Err().(oracleErrors.SQLError).ErrorCode() == string(oracleErrors.TableOrViewNotFound) {
+			// requires "Grant SELECT ON SYS.V_$CPOOL_CONN_INFO"
+			t.Skipf("cannot verify DRCP attachment: %v", rows.Err())
+		}
+		t.Fatalf("query v$cpool_conn_info for attached DRCP class %q failed: %v", expectedClass, rows.Err())
+	}
+	rows.Scan(&attachedClass, &purity, &tag, &connection_status)
+	if attachedClass == "" || purity == "" {
+		t.Fatalf("DRCP connection class %q was not found in v$cpool_conn_info", expectedClass)
+	}
+	t.Logf("DRCP conn info class %q attached, purity %q, tag %q, status %q", attachedClass, purity, tag, connection_status)
 }

@@ -46,9 +46,9 @@ import (
 	oracleErrors "github.com/oracle/go-oracledb/v26/oracle/errors"
 )
 
- // ttiSPFOCSessret server’s “session-return values” message for a pooled-session GET/attach.
- // This message is received from the server and therefore only implements
- // UnMarshalFrom and GetMsgCode; it does not support MarshalTo.
+// ttiSPFOCSessret server’s piggyback “session-return values” message for a pooled-session GET/attach.
+// This message is received from the server and therefore only implements
+// UnMarshalFrom and GetMsgCode; it does not support MarshalTo.
 type ttiSPFOCSessret struct {
 	// keyValueArr holds the list of keyword/value pairs carried by the piggyback.
 	keyValueArr *keywordValueArray
@@ -67,9 +67,6 @@ func (spf *ttiSPFOCSessret) Sessretidx() driverCommon.UB4 {
 func (spf *ttiSPFOCSessret) Sessretser() driverCommon.UB2 {
 	return spf.sessretser
 }
-
-
-
 
 // newttiSPFOCSessret allocates a new receiver for TTISPF/OCSSESSRET payloads.
 // The returned value implements common.Message and is intended to be populated
@@ -113,7 +110,7 @@ func (spf *ttiSPFOCSessret) UnMarshalFrom(ctx context.Context, engine driverComm
 		common.Odl.Warn("Error unmarshalling UB2 for Server-To-Client Piggyback number of pairs", "error", err)
 		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "session ret")
 	}
-	if (numOfPairs > 0) {
+	if numOfPairs > 0 {
 		// Key/value list
 		keyValueList, err := newKeywordValueArray(driverCommon.UB4(numOfPairs))
 		if err != nil {
@@ -128,21 +125,26 @@ func (spf *ttiSPFOCSessret) UnMarshalFrom(ctx context.Context, engine driverComm
 		}
 	}
 
-	spf.sessretflags , err = engine.UnmarshalUB4(ctx)
+	spf.sessretflags, err = engine.UnmarshalUB4(ctx)
 	if err != nil {
 		common.Odl.Warn("Error unmarshalling UB4 for Server-To-Client Piggyback ret flags", "error", err)
 		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "session ret")
 	}
-	spf.sessretidx , err = engine.UnmarshalUB4(ctx)
+	spf.sessretidx, err = engine.UnmarshalUB4(ctx)
 	if err != nil {
 		common.Odl.Warn("Error unmarshalling UB4 for Server-To-Client Piggyback session ID", "error", err)
 		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "session ret")
 	}
-	spf.sessretser , err = engine.UnmarshalUB2(ctx)
+	spf.sessretser, err = engine.UnmarshalUB2(ctx)
 	if err != nil {
 		common.Odl.Warn("Error unmarshalling UB2 for Server-To-Client Piggyback session serial", "error", err)
 		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "session ret")
 	}
+
+	// update the session metadata in the session properties cache
+	// connection.updateSessionProperties(sessretokv);
+	// connection.updateSessionProperties(T4CTTIoauthenticate.AUTH_SESSION_ID, String.valueOf(sessretidx));
+	// connection.updateSessionProperties(T4CTTIoauthenticate.AUTH_SERIAL_NUM, String.valueOf(sessretser));
 
 	return nil
 }

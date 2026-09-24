@@ -40,51 +40,43 @@ package ttc
 
 import (
 	"context"
-	"database/sql/driver"
-	"time"
 
-	"github.com/oracle/go-oracledb/v26/internal/common"
+	driverCommon "github.com/oracle/go-oracledb/v26/internal/driver/common"
 )
 
-// Implementation of Pinger and Validator interfaces
-
-// *** Pinger ***
-
-// Ping pings the database to check if the connection is in a valid state
-//
-// Returns: driver.ErrBadConn if the connection is not in a valid state,
-//
-//	otherwise nil
-func (c *connection) Ping(ctx context.Context) error {
-	err := c.runFunctionWithFunHeader(ctx, ping)
-	if err != nil {
-		return driver.ErrBadConn
-	}
-	return nil
+// ttiSPFOCSessrel server's "session-release values" message for a pooled-session release.
+// This message is received from the server and therefore only implements
+// UnMarshalFrom and GetMsgCode; it does not support MarshalTo.
+type ttiSPFOCSessrel struct {
+	sessrlstag  string
+	sessrlsmode driverCommon.UB4
 }
 
-// *** Validator ***
+// newttiSPFOCSessrel allocates a new receiver for TTISPF/OCSSESSREL payloads.
+// The returned value implements common.Message and is intended to be populated
+// via UnMarshalFrom by the MessageStreamer.
+func newttiSPFOCSessrel() driverCommon.Message[driverCommon.MessageType] {
 
-const (
-	// timeout duration to prevent the IsValid function from blocking indefinitely
-	_pingTimeout time.Duration = 10000000000 // 10s
-)
+	return &ttiSPFOCSessrel{sessrlsmode: 0}
+}
 
-// IsValid checks if the connection is valid
-//
-// Returns: true if the connection is valid otherwise false
-func (c *connection) IsValid() bool {
+// GetMsgCode implements common.Message and identifies this message as TTISPF
+// (Server-side piggyback).
+func (spf *ttiSPFOCSessrel) GetMsgCode() driverCommon.MessageType {
+	return TTIONEWAYFN
+}
 
-	// Check if inband notification has been received.
-	c._isValid = c._isValid && !c.ns.CheckInbandNotification()
+// getFuncCode returns the piggyback function code associated with this message.
+func (spf *ttiSPFOCSessrel) GetFuncCode() driverCommon.FunctionType {
+	return driverCommon.FunctionType(ocsessrls)
+}
 
-	if c._drcpState == _drcpConnectionStateAttached {
-		context, _ := context.WithTimeout(context.Background(), _pingTimeout)
-		err := c.DetachFromResidentPool(context)
-		if err != nil {
-			common.Odl.Debug("Failed to attach to the DRCP pool", "error", err)
-			c._isValid = false
-		}
-	}
-	return c._isValid
+// UnMarshalFrom reads a TTISPF/OCSSESSREL payload from the wire.
+// Expected layout (as observed from network traces):
+func (spf *ttiSPFOCSessrel) MarshalTo(ctx context.Context, engine driverCommon.Marshaller) error {
+	engine.MarshalSB4(ctx, 0)
+	engine.MarshalNullPTR(ctx)
+	engine.MarshalUB4(ctx, spf.sessrlsmode)
+
+	return nil
 }

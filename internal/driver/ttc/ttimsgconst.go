@@ -225,4 +225,7 @@ const (
 	ldiRegIDFlag             = byte(0x80) // region id present if (value[2] & 0xFF) > ldiRegIDFlag
 	ldiRegIDSet              = byte(0x40) // base offset applied to hour when region id present
 	ldiMaxTimeField          = byte(60)   // base offset applied to hour/minute when region id not present
+
+	ocsessget byte = 162
+	ocsessrls byte = 163
 )

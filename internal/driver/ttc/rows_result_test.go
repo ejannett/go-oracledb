@@ -212,7 +212,7 @@ func buildTestTTCRows(nullable bool, dtype DtyType, scale int8, strictNull *bool
 	if strictNull != nil {
 		props := oracleconfig.OracleDriverProperties{}
 		props.StrictNullValueHandling = *strictNull
-		shelf.Shelf.UpdateConnectionProperties(&props)
+		shelf.Shelf.UpdateDriverConfig(&props)
 	}
 
 	rows := &ttcRows{
