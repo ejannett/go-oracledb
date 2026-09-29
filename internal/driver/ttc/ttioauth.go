@@ -403,8 +403,9 @@ func (o *oAuth) prepareForOAUTH(luser driverCommon.B1Array,
 	o.setVSessionKeyValsForOAUTH()
 	o.setAlterSessionKeyValsForOAUTH()
 	o.setDriverIdentityKeyValsForOAUTH()
-	o.setDRCPKeyValsForOAUTH()
-
+	if len(o.connectionClass) > 0 {
+		o.setDRCPKeyValsForOAUTH()
+	}
 	return nil
 }
 
@@ -418,7 +419,9 @@ func (o *oAuth) prepareForTokenOAUTH(luser driverCommon.B1Array) {
 	o.setVSessionKeyValsForOAUTH()
 	o.setAlterSessionKeyValsForOAUTH()
 	o.setDriverIdentityKeyValsForOAUTH()
-	o.setDRCPKeyValsForOAUTH()
+	if len(o.connectionClass) > 0 {
+		o.setDRCPKeyValsForOAUTH()
+	}
 }
 
 // Initializes logonMode before executing an oauth call.

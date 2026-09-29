@@ -83,16 +83,16 @@ func NewConnectionWrapper(connection *sql.Conn) (*connectionWrapper, error) {
 }
 
 func (c *connectionWrapper) AttachToDrcpPool(ctx context.Context) error {
-	c.connection.Raw(func(c any) error {
+	return c.connection.Raw(func(c any) error {
 		oc, _ := c.(driverCommon.DRCPUser)
 		return oc.AttachToResidentPool(ctx)
 	})
-	return nil
 }
 func (c *connectionWrapper) DetachFromDrcpPool(ctx context.Context) error {
-	c.connection.Raw(func(c any) error {
+
+	return c.connection.Raw(func(c any) error {
 		oc, _ := c.(driverCommon.DRCPUser)
 		return oc.DetachFromResidentPool(ctx)
 	})
-	return nil
+
 }

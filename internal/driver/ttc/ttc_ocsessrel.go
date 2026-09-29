@@ -44,36 +44,34 @@ import (
 	driverCommon "github.com/oracle/go-oracledb/v26/internal/driver/common"
 )
 
-// ttiSPFOCSessrel server's "session-release values" message for a pooled-session release.
-// This message is received from the server and therefore only implements
-// UnMarshalFrom and GetMsgCode; it does not support MarshalTo.
-type ttiSPFOCSessrel struct {
+// ttiOCSessrel server's "session-release values" message for a pooled-session release.
+type ttiOCSessrel struct {
 	sessrlstag  string
 	sessrlsmode driverCommon.UB4
 }
 
-// newttiSPFOCSessrel allocates a new receiver for TTISPF/OCSSESSREL payloads.
+// newttiOCSessrel allocates a new receiver for OCSSESSREL payloads.
 // The returned value implements common.Message and is intended to be populated
 // via UnMarshalFrom by the MessageStreamer.
-func newttiSPFOCSessrel() driverCommon.Message[driverCommon.MessageType] {
+func newttiOCSessrel() driverCommon.Message[driverCommon.MessageType] {
 
-	return &ttiSPFOCSessrel{sessrlsmode: 0}
+	return &ttiOCSessrel{sessrlsmode: 0}
 }
 
 // GetMsgCode implements common.Message and identifies this message as TTISPF
 // (Server-side piggyback).
-func (spf *ttiSPFOCSessrel) GetMsgCode() driverCommon.MessageType {
+func (spf *ttiOCSessrel) GetMsgCode() driverCommon.MessageType {
 	return TTIONEWAYFN
 }
 
-// getFuncCode returns the piggyback function code associated with this message.
-func (spf *ttiSPFOCSessrel) GetFuncCode() driverCommon.FunctionType {
+// GetFuncCode returns the function code associated with this message.
+func (spf *ttiOCSessrel) GetFuncCode() driverCommon.FunctionType {
 	return driverCommon.FunctionType(ocsessrls)
 }
 
-// UnMarshalFrom reads a TTISPF/OCSSESSREL payload from the wire.
-// Expected layout (as observed from network traces):
-func (spf *ttiSPFOCSessrel) MarshalTo(ctx context.Context, engine driverCommon.Marshaller) error {
+// MarshalTo writes a OCSSESSREL payload from the wire.
+func (spf *ttiOCSessrel) MarshalTo(ctx context.Context, engine driverCommon.Marshaller) error {
+	// TODO : enough for now
 	engine.MarshalSB4(ctx, 0)
 	engine.MarshalNullPTR(ctx)
 	engine.MarshalUB4(ctx, spf.sessrlsmode)

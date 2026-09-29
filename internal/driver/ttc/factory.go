@@ -199,7 +199,6 @@ func (f *SimpleFactory) GetMessage(msgType driverCommon.MessageType) (driverComm
 
 // GetMessageForFunction retrieves the best message implementor for a given function type.
 func (f *SimpleFactory) GetMessageForFunction(msgType driverCommon.MessageType, funcType driverCommon.FunctionType) (driverCommon.Message[driverCommon.MessageType], error) {
-	common.Odl.Debug("New function requested", "code", funcType)
 
 	key := functionRegistryKey{
 		messageType:  msgType,

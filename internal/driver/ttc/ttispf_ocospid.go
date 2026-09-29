@@ -46,15 +46,11 @@ import (
 	oracleErrors "github.com/oracle/go-oracledb/v26/oracle/errors"
 )
 
- // ttiSPFOCOspid OS PID for MTS connection
- // This message is received from the server and therefore only implements
- // UnMarshalFrom and GetMsgCode; it does not support MarshalTo.
+// ttiSPFOCOspid OS PID for MTS connection
+// This message is received from the server and therefore only implements
+// UnMarshalFrom and GetMsgCode; it does not support MarshalTo.
 type ttiSPFOCOspid struct {
-
 }
-
-
-
 
 // ttiSPFOCOspid allocates a new receiver for TTISPF/OCOSPID payloads.
 // The returned value implements common.Message and is intended to be populated
@@ -69,7 +65,7 @@ func (spf *ttiSPFOCOspid) GetMsgCode() driverCommon.MessageType {
 	return TTISPF
 }
 
-// getFuncCode returns the piggyback function code associated with this message.
+// GetFuncCode returns the piggyback function code associated with this message.
 // For OCOSPID it is ocospid (see ttimsgconst.go).
 func (spf *ttiSPFOCOspid) GetFuncCode() driverCommon.FunctionType {
 	return driverCommon.FunctionType(ocospid)
@@ -91,7 +87,7 @@ func (spf *ttiSPFOCOspid) UnMarshalFrom(ctx context.Context, engine driverCommon
 		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "OCOSPID")
 	}
 
-	_ , err = engine.UnmarshalB1Array(ctx, int(nbOfDtys))
+	_, err = engine.UnmarshalB1Array(ctx, int(nbOfDtys))
 	if err != nil {
 		common.Odl.Warn("Error unmarshalling UB2 for Server-To-Client Piggyback ospid", "error", err)
 		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "OCOSPID")

@@ -44,33 +44,31 @@ import (
 	driverCommon "github.com/oracle/go-oracledb/v26/internal/driver/common"
 )
 
-// ttiSPFOCSessrel server's "session-release values" message for a pooled-session release.
+// ttiSPFOCSessget server's "session-release values" message for a pooled-session release.
 // This message is received from the server and therefore only implements
 // UnMarshalFrom and GetMsgCode; it does not support MarshalTo.
 type ttiSPFOCSessget struct {
 }
 
-// newttiSPFOCSessrel allocates a new receiver for TTISPF/OCSSESSREL payloads.
+// newttiOCSessget allocates a new receiver for OCSSESSGRET payloads.
 // The returned value implements common.Message and is intended to be populated
 // via UnMarshalFrom by the MessageStreamer.
-func newttiSPFOCSessget() driverCommon.Message[driverCommon.MessageType] {
+func newttiOCSessget() driverCommon.Message[driverCommon.MessageType] {
 
 	return &ttiSPFOCSessget{}
 }
 
 // GetMsgCode implements common.Message and identifies this message as ttiSPFOCSessget
-// (Server-side piggyback).
 func (fun *ttiSPFOCSessget) GetMsgCode() driverCommon.MessageType {
 	return TTIFUN
 }
 
-// getFuncCode returns the piggyback function code associated with this message.
+// GetFuncCode returns the piggyback function code associated with this message.
 func (fun *ttiSPFOCSessget) GetFuncCode() driverCommon.FunctionType {
 	return driverCommon.FunctionType(ocsessget)
 }
 
-// UnMarshalFrom reads a TTISPF/OCSSESSREL payload from the wire.
-// Expected layout (as observed from network traces):
+// MarshalTo reads a OCSSESSGRET payload from the wire.
 func (fun *ttiSPFOCSessget) MarshalTo(ctx context.Context, engine driverCommon.Marshaller) error {
 
 	return nil

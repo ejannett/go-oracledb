@@ -247,17 +247,17 @@ func init() {
 		common.Odl.Warn("Failed to register oSessionKey function reply", "error", err)
 	}
 
-	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTISPF, functionType: driverCommon.FunctionType(ocospid)}, -1, newttiSPFOCOspid)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTISPF, functionType: ocospid}, -1, newttiSPFOCOspid)
 	if err != nil {
 		common.Odl.Warn("Failed to register SPF function", "error", err)
 	}
 
-	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTISPF, functionType: driverCommon.FunctionType(ocsessret)}, -1, newttiSPFOCSessret)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTISPF, functionType: ocsessret}, -1, newttiSPFOCSessret)
 	if err != nil {
 		common.Odl.Warn("Failed to register SPF function", "error", err)
 	}
 
-	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTISPF, functionType: driverCommon.FunctionType(ocssync)}, -1, newttiSPFOCSSync)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTISPF, functionType: ocssync}, -1, newttiSPFOCSSync)
 	if err != nil {
 		common.Odl.Warn("Failed to register SPF function", "error", err)
 	}
@@ -327,6 +327,18 @@ func init() {
 	}
 
 	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: rollback}, 18, newRollback18)
+	if err != nil {
+		common.Odl.Warn("Failed to register Commit function", "error", err)
+	}
+
+	// Register session get  functions (used to DRCP attach)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: ocsessget}, MinTTCProtocolVersion, newttiOCSessget)
+	if err != nil {
+		common.Odl.Warn("Failed to register Commit function", "error", err)
+	}
+
+	// Register session get  functions (used to DRCP attach)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIONEWAYFN, functionType: ocsessrls}, MinTTCProtocolVersion, newttiOCSessrel)
 	if err != nil {
 		common.Odl.Warn("Failed to register Commit function", "error", err)
 	}

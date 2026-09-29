@@ -615,6 +615,6 @@ func initMessagesEn() {
 	// Cause:    An operation is made on a connection which is not in the right attachment state.
 	// Action:   N/A
 	// Comment:  N/A
-	message.SetString(language.English, string(oracleErrors.DRCPInvalidState), "Invalid DRCP state %s")
+	message.SetString(language.English, string(oracleErrors.DRCPInvalidState), "Invalid DRCP state %d")
 
 }

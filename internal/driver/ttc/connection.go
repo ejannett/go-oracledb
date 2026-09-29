@@ -374,7 +374,7 @@ func (c *connection) AttachToResidentPool(ctx context.Context) error {
 		common.Odl.Debug("Connection.attachToDRCPool called but implicit pooling is in place")
 		return common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpConnectionState)
 	}
-	function, err := c.shelf.Shelf.GetMessageFactory().GetMessageForFunction(TTIFUN, driverCommon.FunctionType(ocsessget))
+	function, err := c.shelf.Shelf.GetMessageFactory().GetMessageForFunction(TTIFUN, ocsessget)
 	if err != nil {
 		return err
 	}
@@ -393,7 +393,7 @@ func (c *connection) AttachToResidentPool(ctx context.Context) error {
 func (c *connection) DetachFromResidentPool(ctx context.Context) error {
 	common.Odl.Debug("releasing session")
 	if c._drcpState == _drcpDisabled {
-		common.Odl.Debug("Connection.DetachFromResidentPool called but drcp not enabled")
+		common.Odl.Debug("Connection.DetachFromResidentPool called but DRCP not enabled")
 		return common.NewOracleError(oracleErrors.DRCPNotEnabled, nil)
 	}
 	if c._drcpState == _drcpImplicitPooling {
@@ -414,9 +414,17 @@ func (c *connection) DetachFromResidentPool(ctx context.Context) error {
 		return err
 	}
 
-	relMsg := function.(*ttiSPFOCSessrel)
+	relMsg := function.(*ttiOCSessrel)
 
-	c.shelf.GetMessageStreamer().Push(ctx, relMsg)
+	err = c.shelf.GetMessageStreamer().Push(ctx, relMsg)
+	if err != nil {
+		// TODO : add logging
+		return err
+	}
+	err = c.shelf.GetMessageStreamer().Flush(ctx)
+	if err != nil {
+		return err
+	}
 	common.Odl.Debug("release session sent")
 	c._drcpState = _drcpConnectionStateDetached
 

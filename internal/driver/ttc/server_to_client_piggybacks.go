@@ -73,31 +73,43 @@ func (sessionUpdater serverToClientPiggybackUpdater) handleServerToClientPiggyba
 	}
 	functionCode := function.GetFuncCode()
 	switch functionCode {
-	case driverCommon.FunctionType(ocssync):
+	case ocssync:
 		return sessionUpdater.updateSessionSyncProperties(msg)
-	case driverCommon.FunctionType(ocsessret):
+	case ocsessret:
 		return sessionUpdater.updateSessionRetProperties(msg)
+	case ocospid:
+		return sessionUpdater.updateOsPID(msg)
 	default:
 		return false, common.NewOracleError(oracleErrors.UnknownSPFFunction, nil, functionCode)
 	}
 
 }
 
+func (sessionUpdater serverToClientPiggybackUpdater) updateOsPID(msg driverCommon.Message[driverCommon.MessageType]) (bool, error) {
+	common.Odl.Debug("got updateOsPID")
+	//ttiSPFOSPID, _ := msg.(*ttiSPFOCOspid)
+	return false, nil
+}
+
 // updateSessionSyncProperties handles OCSSYNC message. Updates session properties.
 func (sessionUpdater serverToClientPiggybackUpdater) updateSessionSyncProperties(msg driverCommon.Message[driverCommon.MessageType]) (bool, error) {
+
+	common.Odl.Debug("Update session sync properties")
+
 	ttiSPFOCSSync, _ := msg.(*ttiSPFOCSSync)
 
 	sessionUpdater.sessionCtx.UpdateSessionProperties(ttiSPFOCSSync.getKeyValueArr())
 
 	return false, nil
 }
+
 // updateSessionSyncProperties handles OCSSYNC message. Updates session properties.
 func (sessionUpdater serverToClientPiggybackUpdater) updateSessionRetProperties(msg driverCommon.Message[driverCommon.MessageType]) (bool, error) {
 	ttiSPFOCSessret, _ := msg.(*ttiSPFOCSessret)
 	props := driverCommon.NewProperties[string]()
-	props.SetProperty(authSessionId,ttiSPFOCSessret.Sessretidx())
-	props.SetProperty(authSessionSerial,ttiSPFOCSessret.Sessretser())
-	common.Odl.Debug("session updated",authSessionId,ttiSPFOCSessret.Sessretidx(),authSessionSerial,ttiSPFOCSessret.Sessretser())
+	props.SetProperty(authSessionId, ttiSPFOCSessret.Sessretidx())
+	props.SetProperty(authSessionSerial, ttiSPFOCSessret.Sessretser())
+	common.Odl.Debug("session updated", authSessionId, ttiSPFOCSessret.Sessretidx(), authSessionSerial, ttiSPFOCSessret.Sessretser())
 	sessionUpdater.sessionCtx.UpdateSessionProperties(props)
 
 	return false, nil

@@ -277,15 +277,18 @@ func (pa *passwordAuthenticator) _doOAuth(ctx context.Context) error {
 	oauthMsg.(*oAuth).setHasO7LMRSupport(shelf.GetCapabilities()[kztvovKpclogO7lMr].IsSet)
 	oauthMsg.(*oAuth).setBUseO5Logon(sessionProperties.ContainsKey(authVFRData))
 
-	if shelf.GetDriverConfig().ConnectionProperties.Drcp.Class != "" {
-		oauthMsg.(*oAuth).setDrcpConnectionClass(
-			driverCommon.B1Array(shelf.GetDriverConfig().ConnectionProperties.Drcp.Class))
-		if clientProperties.ContainsKey(AuthKpplPurity) {
-			oauthMsg.(*oAuth).setDrcpPurity(
-				driverCommon.B1Array(shelf.GetDriverConfig().ConnectionProperties.Drcp.Purity))
+	if shelf.GetDriverConfig().ConnectionProperties.ServerType == common.ServerTypePooled {
+		if shelf.GetDriverConfig().ConnectionProperties.Drcp.Class != "" {
+			oauthMsg.(*oAuth).setDrcpConnectionClass(
+				driverCommon.B1Array(shelf.GetDriverConfig().ConnectionProperties.Drcp.Class))
+			if clientProperties.ContainsKey(AuthKpplPurity) {
+				oauthMsg.(*oAuth).setDrcpPurity(
+					driverCommon.B1Array(shelf.GetDriverConfig().ConnectionProperties.Drcp.Purity))
+			}
+		} else {
+			// TODO : what's default class value ?
 		}
 	}
-
 	oauthMsg.(*oAuth).setLogonMode(pa._logonMode)
 	if common.KpzLogonSysdba.Enabled(pa._logonMode) && len(pa._password) == 0 {
 		common.Odl.Debug("KpzLogonSysdba mode, skip _oSessionKeyInit of o response")
