@@ -343,7 +343,7 @@ func init() {
 	}
 
 	// Register session get  functions (used to DRCP attach)
-	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: ocsessrls}, MinTTCProtocolVersion, newttiOCSessrel)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIONEWAYFN, functionType: ocsessrls}, MinTTCProtocolVersion, newttiOCSessrel)
 	if err != nil {
 		common.Odl.Warn("Failed to register Commit function", "error", err)
 	}

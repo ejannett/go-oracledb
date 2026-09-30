@@ -63,7 +63,7 @@ func newttiOCSessrel() driverCommon.Message[driverCommon.MessageType] {
 // GetMsgCode implements common.Message and identifies this message as TTISPF
 // (Server-side piggyback).
 func (spf *ttiOCSessrel) GetMsgCode() driverCommon.MessageType {
-	return TTIFUN
+	return TTIONEWAYFN
 }
 
 // GetFuncCode returns the function code associated with this message.

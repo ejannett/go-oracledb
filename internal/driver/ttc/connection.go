@@ -452,7 +452,7 @@ func (c *connection) DetachFromResidentPool(ctx context.Context) error {
 		return common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpConnectionState)
 	}
 
-	function, err := c.shelf.Shelf.GetMessageFactory().GetMessageForFunction(TTIFUN, ocsessrls)
+	function, err := c.shelf.Shelf.GetMessageFactory().GetMessageForFunction(TTIONEWAYFN, ocsessrls)
 	if err != nil {
 		return err
 	}
