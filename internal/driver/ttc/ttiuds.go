@@ -130,7 +130,6 @@ func newTTIuds() driverCommon.UnMarshallable {
 
 // UnMarshalFrom extracts column/type metadata fields from the network buffer.
 func (p *tTIuds) UnMarshalFrom(ctx context.Context, mar driverCommon.Marshaller) error {
-	common.Odl.Debug("TTIuds: UnMarshalFrom start")
 	var nullAllowed driverCommon.UB1
 	var err error
 

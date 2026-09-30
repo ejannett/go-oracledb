@@ -41,7 +41,9 @@ package ttc
 import (
 	"context"
 
+	"github.com/oracle/go-oracledb/v26/internal/common"
 	driverCommon "github.com/oracle/go-oracledb/v26/internal/driver/common"
+	oracleErrors "github.com/oracle/go-oracledb/v26/oracle/errors"
 )
 
 // ttiOCSessrel server's "session-release values" message for a pooled-session release.
@@ -61,20 +63,32 @@ func newttiOCSessrel() driverCommon.Message[driverCommon.MessageType] {
 // GetMsgCode implements common.Message and identifies this message as TTISPF
 // (Server-side piggyback).
 func (spf *ttiOCSessrel) GetMsgCode() driverCommon.MessageType {
-	return TTIONEWAYFN
+	return TTIFUN
 }
 
 // GetFuncCode returns the function code associated with this message.
 func (spf *ttiOCSessrel) GetFuncCode() driverCommon.FunctionType {
-	return driverCommon.FunctionType(ocsessrls)
+	return ocsessrls
 }
 
 // MarshalTo writes a OCSSESSREL payload from the wire.
 func (spf *ttiOCSessrel) MarshalTo(ctx context.Context, engine driverCommon.Marshaller) error {
-	// TODO : enough for now
-	engine.MarshalSB4(ctx, 0)
-	engine.MarshalNullPTR(ctx)
-	engine.MarshalUB4(ctx, spf.sessrlsmode)
+
+	err := engine.MarshalSB4(ctx, 0)
+	if err != nil {
+		common.Odl.Warn("Failed to marshall OCSSESSREL", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
+	err = engine.MarshalNullPTR(ctx)
+	if err != nil {
+		common.Odl.Warn("Failed to marshall OCSSESSREL", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
+	err = engine.MarshalUB4(ctx, spf.sessrlsmode)
+	if err != nil {
+		common.Odl.Warn("Failed to marshall OCSSESSREL", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
 
 	return nil
 }

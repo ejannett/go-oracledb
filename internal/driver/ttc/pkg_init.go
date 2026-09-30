@@ -195,33 +195,33 @@ func init() {
 
 	// ========================= FUNCTION -> MESSAGE Registry =========================
 	// Register FunctionType → Message implementations
-	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: oauth}, 18, NewOAuth18)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: oauth}, 18, newOAuth18)
 	if err != nil {
 		common.Odl.Warn("Failed to register function oauth", "error", err)
 	}
 
-	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: oauth}, MinTTCProtocolVersion, NewOAuth)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: oauth}, MinTTCProtocolVersion, newOAuth)
 	if err != nil {
 		common.Odl.Warn("Failed to register function oauth", "error", err)
 	}
 
-	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: oSesskey}, 18, NewOSesskey18)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: oSesskey}, 18, newOSesskey18)
 	if err != nil {
 		common.Odl.Warn("Failed to register function oSesskey", "error", err)
 	}
 
-	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: oSesskey}, MinTTCProtocolVersion, NewOSesskey)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: oSesskey}, MinTTCProtocolVersion, newOSesskey)
 	if err != nil {
 		common.Odl.Warn("Failed to register function oSesskey", "error", err)
 	}
 
 	// Register OALL8 execute/query function
-	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: oAll8}, 18, NewOall18)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: oAll8}, 18, newOall18)
 	if err != nil {
 		common.Odl.Warn("Failed to register function oAll8", "error", err)
 	}
 
-	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: oAll8}, MinTTCProtocolVersion, NewOall)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: oAll8}, MinTTCProtocolVersion, newOall)
 	if err != nil {
 		common.Odl.Warn("Failed to register function oAll8", "error", err)
 	}
@@ -237,12 +237,12 @@ func init() {
 	}
 
 	// Register oauth function response handler
-	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIRPA, functionType: oauth}, MinTTCProtocolVersion, NewOAuthRPA)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIRPA, functionType: oauth}, MinTTCProtocolVersion, newOAuthRPA)
 	if err != nil {
 		common.Odl.Warn("Failed to register oauth function reply", "error", err)
 	}
 
-	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIRPA, functionType: oSesskey}, MinTTCProtocolVersion, NewOSesskeyRPA)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIRPA, functionType: oSesskey}, MinTTCProtocolVersion, newOSesskeyRPA)
 	if err != nil {
 		common.Odl.Warn("Failed to register oSessionKey function reply", "error", err)
 	}
@@ -337,8 +337,13 @@ func init() {
 		common.Odl.Warn("Failed to register Commit function", "error", err)
 	}
 
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIRPA, functionType: ocsessget}, MinTTCProtocolVersion, newTtiOCSessgetRpa)
+	if err != nil {
+		common.Odl.Warn("Failed to register oauth function reply", "error", err)
+	}
+
 	// Register session get  functions (used to DRCP attach)
-	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIONEWAYFN, functionType: ocsessrls}, MinTTCProtocolVersion, newttiOCSessrel)
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: ocsessrls}, MinTTCProtocolVersion, newttiOCSessrel)
 	if err != nil {
 		common.Odl.Warn("Failed to register Commit function", "error", err)
 	}

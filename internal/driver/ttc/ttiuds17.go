@@ -67,7 +67,6 @@ func newTTIuds17() driverCommon.UnMarshallable {
 
 // UnMarshalFrom extracts column/type metadata and domain info from the network buffer
 func (p *tTIuds17) UnMarshalFrom(ctx context.Context, mar driverCommon.Marshaller) error {
-	common.Odl.Debug("TTIuds17: UnMarshalFrom start")
 	var err error
 	if err = p.tTIuds.UnMarshalFrom(ctx, mar); err != nil {
 		common.Odl.Warn("TTIuds.UnMarshalFrom: failed to unmarshal", "error", err)

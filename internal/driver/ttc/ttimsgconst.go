@@ -200,6 +200,8 @@ const (
 	TtiEocEct = 0x08
 	// TtiEocfDropWhenReturned indicates this connection is affected by a planned-down
 	TtiEocfDropWhenReturned common.UB4 = 0x00000800
+	// TtiEocRel clean-up cusror ID with implicit pooling on
+	TtiEocRel common.UB4 = 0x00008000
 
 	// Piggyback/session property key for elastic pool LDR flag
 	al8kwPdbElasticPoolLdrStr = "AL8KW_PDB_ELASTIC_POOL_LDR"

@@ -80,7 +80,7 @@ func TestDriver_DRCP_SelectDual(t *testing.T) {
 	//config.Credentials.User = TestingConfig.Credentials.Username
 	//config.Credentials.Password = TestingConfig.Credentials.Password
 
-	config.ConnectionProperties.ServerType = common.ServerTypeDedicated
+	config.ConnectionProperties.ServerType = common.ServerTypePooled
 	config.ConnectionProperties.Drcp.Class = "TestDriver_DRCP_SelectDual"
 	//config.ConnectionProperties.Drcp.Boundary = "STATEMENT"
 
@@ -105,23 +105,20 @@ func TestDriver_DRCP_SelectDual(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get dedicated sql connection failed: %v", err)
 	}
-	//defer cnx.Close()
-	//oracleConnection, err := NewConnectionWrapper(cnx)
+	defer cnx.Close()
+	oracleConnection, err := NewConnectionWrapper(cnx)
 	if err != nil {
 		t.Fatalf("create connection wrapper failed: %v", err)
 	}
 
 	// TODO : add a test for error thrown when implicit attach is on
-	//err = oracleConnection.AttachToDrcpPool(context.Background())
-	//if err != nil {
-	//	t.Fatalf("Can't attach to DRCP: %v", err)
-	//}
-
-	//isDrcpAttached(t, db, config.ConnectionProperties.Drcp.Class)
-
+	err = oracleConnection.AttachToDrcpPool(context.Background())
 	if err != nil {
-		t.Fatalf("cannot connect %v", err)
+		t.Fatalf("Can't attach to DRCP: %v", err)
 	}
+
+	isDrcpAttached(t, db, config.ConnectionProperties.Drcp.Class)
+
 	rows, err := cnx.QueryContext(context.Background(), "SELECT 1 FROM DUAL")
 	if err != nil {
 		t.Fatalf("select from DUAL failed: %v", err)
@@ -132,14 +129,9 @@ func TestDriver_DRCP_SelectDual(t *testing.T) {
 		t.Fatalf("no row returned from DUAL")
 	}
 
-	//err = oracleConnection.DetachFromDrcpPool(context.Background())
-	//if err != nil {
-	//	t.Fatalf("Can't detach from DRCP: %v", err)
-	//}
-
-	err = cnx.Close()
+	err = oracleConnection.DetachFromDrcpPool(context.Background())
 	if err != nil {
-		t.Fatalf("Can't close the connection: %v", err)
+		t.Fatalf("Can't detach from DRCP: %v", err)
 	}
 
 }

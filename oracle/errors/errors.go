@@ -192,11 +192,12 @@ const (
 	// InvalidFileConfig Can't load configuration from file.
 	InvalidFileConfig ErrorCode = "OGD-00066"
 
-	DRCPNotEnabled   ErrorCode = "OGD-00180"
-	DRCPInvalidState ErrorCode = "OGD-00181"
+	DRCPNotEnabled    ErrorCode = "OGD-00180"
+	DRCPInvalidState  ErrorCode = "OGD-00181"
+	DRCPAttachFailed  ErrorCode = "OGD-00182"
+	DRCPDettachFailed ErrorCode = "OGD-00183"
 
 	// TRANSACTION PROCESSING
-
 	// Not in transaction error
 	NotInTransaction ErrorCode = "OGD-00080"
 	// Isolation level not supported error

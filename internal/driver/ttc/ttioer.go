@@ -120,12 +120,15 @@ type endOfCallStatus struct {
 	// connectionShouldBeDropped indicates this connection is affected by a
 	// planned-down
 	connectionShouldBeDropped bool
+
+	// DRCP detach
+	connectionDRCPDetached bool
 }
 
 func (e *endOfCallStatus) String() string {
-	return fmt.Sprintf("endOfCallStatus {elapsedTime: [%v], connectionShouldBeDropped: [%v]}",
+	return fmt.Sprintf("endOfCallStatus {elapsedTime: [%v], connectionShouldBeDropped: [%v], connectionDRCPDetached: [%v]}",
 		e.elapsedTime,
-		e.connectionShouldBeDropped)
+		e.connectionShouldBeDropped, e.connectionDRCPDetached)
 }
 
 // newTTIoer creates a new instance of tTIoer.
@@ -507,6 +510,11 @@ func unmarshalEndOfCallStatus(ctx context.Context, mar driverCommon.Marshaller) 
 		common.Odl.Debug("TTIoer.UnMarshalFrom: EOCS got in-band planned down bit, mark connection for close")
 		retVal.connectionShouldBeDropped = true
 		// TODO: set connection to be closed when returned to pool
+	}
+
+	if (ucaeocs & TtiEocRel) != 0 {
+		retVal.connectionDRCPDetached = true
+		common.Odl.Debug("tTIoer.UnMarshalFrom: EOCS ", "TtiEocRel received")
 	}
 	return retVal, nil
 }

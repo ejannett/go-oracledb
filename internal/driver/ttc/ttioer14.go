@@ -97,7 +97,6 @@ func (t *tTIoer14) UnMarshalFrom(ctx context.Context, mar driverCommon.Marshalle
 	}
 
 	if t.oerrcd2 != 0 {
-		common.Odl.Debug("TTIoer14.UnMarshalFrom: oerrcd2 != 0, unmarshalling error message")
 		if err := t._unmarshalErrorMessage(ctx, mar); err != nil {
 			common.Odl.Error("TTIoer14.UnMarshalFrom: unmarshalErrorMessage failed",
 				"error", err,
@@ -145,7 +144,6 @@ func (t *tTIoer14) _unmarshalAttributes(ctx context.Context, mar driverCommon.Ma
 		)
 		return common.NewOracleError(oracleErrors.FailUnmarshal, err, TTCMsgTypeDescription[t.GetMsgCode()])
 	}
-	common.Odl.Debug("TTIoer14.UnmarshalAttributes: end")
 	return nil
 }
 

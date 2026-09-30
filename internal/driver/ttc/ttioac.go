@@ -353,7 +353,6 @@ func (p *tTIoac) MarshalTo(ctx context.Context, mar driverCommon.Marshaller) err
 // UnMarshalFrom extracts information from the network buffer and populates the TTIoac fields.
 // It returns an error if unmarshalling fails.
 func (p *tTIoac) UnMarshalFrom(ctx context.Context, mar driverCommon.Marshaller) error {
-	common.Odl.Debug("TTIoac.UnMarshalFrom called")
 	var err error
 
 	if p.dataType, err = mar.UnmarshalUB1(ctx); err != nil {

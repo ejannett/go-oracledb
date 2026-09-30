@@ -119,7 +119,7 @@ func (p *tTIdcb) getColumnContexts() ([]columnContext, error) {
 // UnMarshalFrom unmarshal's column description buffers
 // It returns an error if any.
 func (p *tTIdcb) UnMarshalFrom(ctx context.Context, mar driverCommon.Marshaller) error {
-	common.Odl.Debug("tTIdcb: UnMarshalFrom start")
+
 	var err error
 	length, err := mar.UnmarshalUB1(ctx)
 	if err != nil {

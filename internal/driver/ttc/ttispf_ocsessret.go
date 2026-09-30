@@ -60,15 +60,16 @@ type ttiSPFOCSessret struct {
 	sessretser driverCommon.UB2
 }
 
-func (spf *ttiSPFOCSessret) Sessretidx() driverCommon.UB4 {
+func (spf *ttiSPFOCSessret) getSessretidx() driverCommon.UB4 {
 	return spf.sessretidx
 }
 
-func (spf *ttiSPFOCSessret) Sessretser() driverCommon.UB2 {
+func (spf *ttiSPFOCSessret) getSessretser() driverCommon.UB2 {
 	return spf.sessretser
 }
 
-// newttiSPFOCSessret allocates a new receiver for TTISPF/OCSSESSRET payloads.
+// newttiSPFOCSessret allocates a new receiv
+// er for TTISPF/OCSSESSRET payloads.
 // The returned value implements common.Message and is intended to be populated
 // via UnMarshalFrom by the MessageStreamer.
 func newttiSPFOCSessret() driverCommon.Message[driverCommon.MessageType] {
@@ -84,13 +85,12 @@ func (spf *ttiSPFOCSessret) GetMsgCode() driverCommon.MessageType {
 // getFuncCode returns the piggyback function code associated with this message.
 // For OCSSESSRET it is ocsessret (see ttimsgconst.go).
 func (spf *ttiSPFOCSessret) GetFuncCode() driverCommon.FunctionType {
-	return driverCommon.FunctionType(ocsessret)
+	return ocsessret
 }
 
 // UnMarshalFrom reads a TTISPF/OCSSESSRET payload from the wire.
 // Expected layout (as observed from network traces):
 func (spf *ttiSPFOCSessret) UnMarshalFrom(ctx context.Context, engine driverCommon.Marshaller) error {
-	common.Odl.Debug("Unmarshalling TTISPF/OCSSESSRET")
 	// Reserved/length (ignored)
 	_, err := engine.UnmarshalUB2(ctx)
 	if err != nil {
@@ -140,11 +140,6 @@ func (spf *ttiSPFOCSessret) UnMarshalFrom(ctx context.Context, engine driverComm
 		common.Odl.Warn("Error unmarshalling UB2 for Server-To-Client Piggyback session serial", "error", err)
 		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "session ret")
 	}
-
-	// update the session metadata in the session properties cache
-	// connection.updateSessionProperties(sessretokv);
-	// connection.updateSessionProperties(T4CTTIoauthenticate.AUTH_SESSION_ID, String.valueOf(sessretidx));
-	// connection.updateSessionProperties(T4CTTIoauthenticate.AUTH_SERIAL_NUM, String.valueOf(sessretser));
 
 	return nil
 }

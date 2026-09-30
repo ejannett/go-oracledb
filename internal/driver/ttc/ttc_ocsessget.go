@@ -41,13 +41,19 @@ package ttc
 import (
 	"context"
 
+	"github.com/oracle/go-oracledb/v26/internal/common"
 	driverCommon "github.com/oracle/go-oracledb/v26/internal/driver/common"
+	oracleErrors "github.com/oracle/go-oracledb/v26/oracle/errors"
 )
 
-// ttiSPFOCSessget server's "session-release values" message for a pooled-session release.
+// ttiOCSessget server's "session-release values" message for a pooled-session release.
 // This message is received from the server and therefore only implements
 // UnMarshalFrom and GetMsgCode; it does not support MarshalTo.
-type ttiSPFOCSessget struct {
+type ttiOCSessget struct {
+	sessgetOkvn   driverCommon.UB2 // Number of keyvalue pair
+	sessgetFlags  driverCommon.UB4 // (oracle to user) SessionGet flags
+	sessigetFlags driverCommon.UB2 // (user to oracle) SessionGet flag to enable partial match
+	returnTag     string           // Return Connection Tags
 }
 
 // newttiOCSessget allocates a new receiver for OCSSESSGRET payloads.
@@ -55,21 +61,113 @@ type ttiSPFOCSessget struct {
 // via UnMarshalFrom by the MessageStreamer.
 func newttiOCSessget() driverCommon.Message[driverCommon.MessageType] {
 
-	return &ttiSPFOCSessget{}
+	return &ttiOCSessget{}
 }
 
 // GetMsgCode implements common.Message and identifies this message as ttiSPFOCSessget
-func (fun *ttiSPFOCSessget) GetMsgCode() driverCommon.MessageType {
+func (fun *ttiOCSessget) GetMsgCode() driverCommon.MessageType {
 	return TTIFUN
 }
 
 // GetFuncCode returns the piggyback function code associated with this message.
-func (fun *ttiSPFOCSessget) GetFuncCode() driverCommon.FunctionType {
-	return driverCommon.FunctionType(ocsessget)
+func (fun *ttiOCSessget) GetFuncCode() driverCommon.FunctionType {
+	return ocsessget
 }
 
-// MarshalTo reads a OCSSESSGRET payload from the wire.
-func (fun *ttiSPFOCSessget) MarshalTo(ctx context.Context, engine driverCommon.Marshaller) error {
+// MarshalTo writes a OCSSESSGET payload to the wire.
+func (fun *ttiOCSessget) MarshalTo(ctx context.Context, engine driverCommon.Marshaller) error {
+	// no flag used for now
+	fun.sessigetFlags = 0
+	buf := dynamicAllocatedArray{value: []byte{}}
 
+	err := buf.MarshalTo(ctx, engine) // kvals from srv. (O2U)
+	if err != nil {
+		common.Odl.Warn("Failed to marshall OCSSESSGET", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
+	err = engine.MarshalPTR(ctx) // num kvals.. (O2U)
+	if err != nil {
+		common.Odl.Warn("Failed to marshall OCSSESSGET", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
+	err = engine.MarshalPTR(ctx) // sessgetflags - Metadata about returned session (O2U)
+	if err != nil {
+		common.Odl.Warn("Failed to marshall OCSSESSGET", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
+	err = engine.MarshalUB2(ctx, fun.sessigetFlags)
+	if err != nil {
+		common.Odl.Warn("Failed to marshall OCSSESSGET", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
+	err = engine.MarshalPTR(ctx) // Return Tag Pointer (O2U)
+	if err != nil {
+		common.Odl.Warn("Failed to marshall OCSSESSGET", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
+	err = engine.MarshalPTR(ctx) // Return Tag Length Pointer (O2U)
+
+	return nil
+}
+
+// OCSSESSGET function response
+type ttiOCSessgetRpa struct {
+	sessgetOkvn  driverCommon.UB2     // Number of keyvalue pair
+	sessgetFlags driverCommon.UB4     // (oracle to user) SessionGet flags
+	returnTag    driverCommon.B1Array // Return Connection Tags
+}
+
+// newTTILobRPA constructs a new LOB RPA message instance.
+//
+// Returns:
+//   - common.Message[common.MessageType]: a zero-initialised LOB RPA message ready for use.
+func newTtiOCSessgetRpa() driverCommon.Message[driverCommon.MessageType] {
+	return &ttiOCSessgetRpa{}
+}
+
+func (p *ttiOCSessgetRpa) GetMsgCode() driverCommon.MessageType {
+	return TTIRPA
+}
+
+// UnMarshalFrom read OCSSESSGET RPA response from the wire
+// arguments:
+//   - ctx : context
+//   - engine : marshalling engine
+func (rpa *ttiOCSessgetRpa) UnMarshalFrom(ctx context.Context, engine driverCommon.Marshaller) error {
+	var err error
+	rpa.sessgetOkvn, err = engine.UnmarshalUB2(ctx) // Read the key value length
+	if err != nil {
+		common.Odl.Warn("Failed to unmarshall OCSSESSGET RPA", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
+	if rpa.sessgetOkvn > 0 {
+		nbOfBytes, err := engine.UnmarshalUB1(ctx) // Read key value pair only if the length is more than 0
+		if err != nil {
+			common.Odl.Warn("Failed to unmarshall OCSSESSGET RPAKeyvalue pair length", "error", err)
+			return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+		}
+		// Keyvalue pair is not used as of now, so ignoring the value
+		_, err = engine.UnmarshalB1Array(ctx, int(nbOfBytes))
+		if err != nil {
+			common.Odl.Warn("Failed to unmarshall OCSSESSGET RPA Keyvalue pair", "error", err)
+			return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+		}
+	}
+	rpa.sessgetFlags, err = engine.UnmarshalUB4(ctx)
+	if err != nil {
+		common.Odl.Warn("Failed to unmarshall OCSSESSGET RPA flags", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
+
+	returnTagLength, err := engine.UnmarshalUB2(ctx) // ReturnTag Length (number of chars)
+	if err != nil {
+		common.Odl.Warn("Failed to unmarshall OCSSESSGET RPA flags", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
+	rpa.returnTag, err = engine.UnmarshalB1Array(ctx, int(returnTagLength)) // Read the ReturnTag value
+	if err != nil {
+		common.Odl.Warn("Failed to unmarshall OCSSESSGET RPA flags", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
 	return nil
 }

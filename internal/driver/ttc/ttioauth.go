@@ -185,10 +185,10 @@ type oAuth struct {
 	connectionPurity        driverCommon.B1Array
 }
 
-// NewOAuth creates a new Oracle Authentication (OAUTH) TTC message with the legacy
+// newOAuth creates a new Oracle Authentication (OAUTH) TTC message with the legacy
 // TTIFUN header format. The returned oAuth value is pre-initialized via _oauthInit
 // and ready to be configured with credentials and session attributes before marshal.
-func NewOAuth() driverCommon.Message[driverCommon.MessageType] {
+func newOAuth() driverCommon.Message[driverCommon.MessageType] {
 	t := &oAuth{
 		header:           &ttiFunHeader{_funcType: oauth},
 		_hasO5LNPSupport: false,
@@ -199,10 +199,10 @@ func NewOAuth() driverCommon.Message[driverCommon.MessageType] {
 	return t
 }
 
-// NewOAuth18 creates a new Oracle Authentication (OAUTH) TTC message using the
+// newOAuth18 creates a new Oracle Authentication (OAUTH) TTC message using the
 // TTIFUN header format (ttiFunHeader18) while reusing the standard oAuth
 // initialization. It is returned as a Message interface ready for configuration.
-func NewOAuth18() driverCommon.Message[driverCommon.MessageType] {
+func newOAuth18() driverCommon.Message[driverCommon.MessageType] {
 	t := &oAuth{
 		header:           &ttiFunHeader18{ttiFunHeader: &ttiFunHeader{_funcType: oauth}},
 		_hasO5LNPSupport: false,
@@ -706,10 +706,10 @@ type OAuthRPA struct {
 	connectionValues *driverCommon.Properties[string]
 }
 
-// NewOAuthRPA creates a new Oracle Authentication Reply (TTIRPA) TTC message.
+// newOAuthRPA creates a new Oracle Authentication Reply (TTIRPA) TTC message.
 // It initializes the OAuthRPA struct and returns it as a Message interface,
 // ready to unmarshal server authentication responses.
-func NewOAuthRPA() driverCommon.Message[driverCommon.MessageType] {
+func newOAuthRPA() driverCommon.Message[driverCommon.MessageType] {
 	return &OAuthRPA{}
 }
 

@@ -69,7 +69,6 @@ func newTTIuds24() driverCommon.UnMarshallable {
 // UnMarshalFrom extracts column/type metadata from the network buffer into the TTIuds struct.
 // It populates vector properties.
 func (p *tTIuds24) UnMarshalFrom(ctx context.Context, mar driverCommon.Marshaller) error {
-	common.Odl.Debug("TTIuds24: UnMarshalFrom start")
 	var err error
 	if err = p.tTIuds20.UnMarshalFrom(ctx, mar); err != nil {
 		common.Odl.Warn("TTIuds20.UnMarshalFrom: failed to unmarshal", "error", err)

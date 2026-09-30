@@ -456,7 +456,6 @@ func (f *CodecFactoryImpl) getEncoder(normalized normalizedBindValue) (encoderFu
 	if normalized.isOutOnly || normalized.value == nil {
 		return converters.EncodeNull, nil
 	}
-	common.Odl.Debug("New encoder requested", "goType", normalized.goType)
 
 	candidates := f.encoders.getCandidates(normalized.goType)
 	bestCandidate := getEntryFromRegistry(f.ttcVersion, candidates)

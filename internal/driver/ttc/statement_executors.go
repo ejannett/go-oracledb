@@ -611,8 +611,6 @@ Returns:
 - []common.UB4: Fully initialized AL8I4 vector.
 */
 func buildAl8i4(iterations driverCommon.UB4, selectStmt bool, flags driverCommon.UB4, parseOption driverCommon.UB4) []driverCommon.UB4 {
-	common.Odl.Debug("buildAl8i4: called",
-		"iterations", iterations, "select", selectStmt, "flags", flags)
 	al := make([]driverCommon.UB4, 13)
 	al[0] = parseOption // server needs to parse
 	al[1] = iterations
@@ -841,7 +839,6 @@ func (e *statementExecutorSelect) runQuery(ctx context.Context, message driverCo
 			returnedCursorID = msg.(*ttioallrpa).getCursorId()
 			common.Odl.Debug("runQuery: TTIRPA received", "cursorID", returnedCursorID)
 		case TTIOER:
-			common.Odl.Debug("runQuery: TTIOER (error) received")
 			err = msg.(tTIOerIface).getError()
 			if err == nil && state.rows == nil {
 				common.Odl.Debug("runQuery: successful TTIOER received before TTIDCB metadata")

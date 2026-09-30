@@ -150,7 +150,9 @@ func (ms *MessageStreamer) Push(ctx context.Context, msg driverCommon.Message[dr
 		return common.NewOracleError(oracleErrors.InternalError, nil)
 	}
 
-	common.Odl.Debug("New push of message", "message", msg)
+	if common.Odl.Enabled(common.BackgroundContext, slog.LevelDebug) {
+		common.Odl.Debug("New push of message", "message", msg)
+	}
 	if ms.outgoingMessages.Len() > outgoingMessagesListMaxLength {
 		common.Odl.Warn("MessageStreamer: outgoing message queue overflow, forcing flush")
 		err := ms.Flush(ctx)
@@ -258,6 +260,8 @@ func (ms *MessageStreamer) Pull(ctx context.Context, expectedMessageTypes ...dri
 		if isExpectedMessageType {
 			common.Odl.Debug("New message out of streamer", "Message", msg)
 			return msg, processingError
+		} else {
+			common.Odl.Debug("Parking unexpected message", "Message", msg)
 		}
 
 		// we do not keep a faulty message
@@ -306,9 +310,6 @@ func (ms *MessageStreamer) RegisterPostUnmarshallCallback(
 //   - msgType: type the message type we unregister the callback for.
 func (ms *MessageStreamer) UnRegisterPreUnmarshallCallback(
 	msgType driverCommon.MessageType) {
-	if common.Odl.Enabled(common.BackgroundContext, slog.LevelDebug) {
-		common.Odl.Debug("Unregistering pre callback", "messageType", toString(msgType))
-	}
 	delete(ms.preUCallbacks, msgType)
 }
 

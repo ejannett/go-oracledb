@@ -51,11 +51,11 @@ import (
 	"github.com/oracle/go-oracledb/v26/internal/driver/network/session"
 )
 
-// TestNewOAuth_Success tests the NewOAuth constructor.
+// TestNewOAuth_Success tests the newOAuth constructor.
 func TestNewOAuth_Success(t *testing.T) {
 	// TODO : move it back to "parallel when race is fixed
 	// t.Parallel()
-	oAuth := NewOAuth().(*oAuth)
+	oAuth := newOAuth().(*oAuth)
 	if oAuth == nil {
 		t.Fatal("NewOAuth returned nil")
 	}
@@ -71,7 +71,7 @@ func TestNewOAuth_Success(t *testing.T) {
 // token logon mode and adds the required session initialization values.
 func TestOAuth_prepareForTokenOAUTH(t *testing.T) {
 	t.Parallel()
-	oauth := NewOAuth().(*oAuth)
+	oauth := newOAuth().(*oAuth)
 	oauth.setLogonMode(oracleCommon.KpzLogonToken.Value())
 	oauth.prepareForTokenOAUTH(common.StringToB1Array("token-user"))
 
@@ -107,7 +107,7 @@ func TestOAuth_setSessionFields(t *testing.T) {
 	t.Run("Defaults when env vars are empty", func(t *testing.T) {
 		t.Setenv("NLS_LANGUAGE", "")
 		t.Setenv("NLS_TERRITORY", "")
-		oauth := NewOAuth().(*oAuth)
+		oauth := newOAuth().(*oAuth)
 		oauth.isSessionTZ = true // Force alter session to be set
 
 		oauth.setSessionFields()
@@ -136,7 +136,7 @@ func TestOAuth_setSessionFields(t *testing.T) {
 	t.Run("Both env vars set", func(t *testing.T) {
 		t.Setenv("NLS_LANGUAGE", "FRENCH")
 		t.Setenv("NLS_TERRITORY", "FRANCE")
-		oauth := NewOAuth().(*oAuth)
+		oauth := newOAuth().(*oAuth)
 		oauth.isSessionTZ = true
 
 		oauth.setSessionFields()
@@ -153,7 +153,7 @@ func TestOAuth_setSessionFields(t *testing.T) {
 	t.Run("Only language set", func(t *testing.T) {
 		t.Setenv("NLS_LANGUAGE", "SPANISH")
 		t.Setenv("NLS_TERRITORY", "")
-		oauth := NewOAuth().(*oAuth)
+		oauth := newOAuth().(*oAuth)
 		oauth.isSessionTZ = true
 
 		oauth.setSessionFields()
@@ -170,7 +170,7 @@ func TestOAuth_setSessionFields(t *testing.T) {
 	t.Run("Only territory set", func(t *testing.T) {
 		t.Setenv("NLS_LANGUAGE", "")
 		t.Setenv("NLS_TERRITORY", "GERMANY")
-		oauth := NewOAuth().(*oAuth)
+		oauth := newOAuth().(*oAuth)
 		oauth.isSessionTZ = true
 
 		oauth.setSessionFields()
@@ -187,7 +187,7 @@ func TestOAuth_setSessionFields(t *testing.T) {
 	t.Run("Escapes single quotes in env-provided literals", func(t *testing.T) {
 		t.Setenv("NLS_LANGUAGE", "AMER'ICAN")
 		t.Setenv("NLS_TERRITORY", "A'MERICA")
-		oauth := NewOAuth().(*oAuth)
+		oauth := newOAuth().(*oAuth)
 		oauth.isSessionTZ = true
 
 		oauth.setSessionFields()
@@ -205,7 +205,7 @@ func TestOAuth_setSessionFields(t *testing.T) {
 // TestOAuth_MarshalTo_Success tests successful marshaling.
 func TestOAuth_MarshalTo_Success(t *testing.T) {
 	t.Parallel()
-	oauth := NewOAuth().(*oAuth)
+	oauth := newOAuth().(*oAuth)
 	buf := NewArrayDataBuffer(1500)
 	engine := NewMarshalEngine(buf, common.BIG_ENDIAN, [5]byte{Native, Universal, Universal, Universal, Universal})
 
@@ -233,7 +233,7 @@ func TestOAuth_MarshalTo_WithOSESSKEYRPA_Success(t *testing.T) {
 	if len(payload) == 0 {
 		t.Fatal("oSesskey RPA payload decode returned empty")
 	}
-	rpa := NewOSesskeyRPA()
+	rpa := newOSesskeyRPA()
 	rpaBuf := NewArrayDataBuffer(8192)
 	_ = rpaBuf.WriteBytesWithContext(context.Background(), payload)
 	rpaEngine := NewMarshalEngine(rpaBuf, common.BIG_ENDIAN, [5]byte{Native, Universal, Universal, Universal, Universal})
@@ -243,7 +243,7 @@ func TestOAuth_MarshalTo_WithOSESSKEYRPA_Success(t *testing.T) {
 	}
 
 	// 2) Build oAuth and set fields as in _doOAuth (o5logon_authenticator._doOAuth)
-	oauth := NewOAuth18().(*oAuth)
+	oauth := newOAuth18().(*oAuth)
 	// Fields sourced from oSesskeyRPA
 	sessionProperties := rpa.(*oSesskeyRPA).connectionValues
 
@@ -319,7 +319,7 @@ func TestOAuthMarshalTo_Fail(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			oauth := NewOAuth().(*oAuth)
+			oauth := newOAuth().(*oAuth)
 			oauth.user = common.StringToB1Array("testuser")
 			oauth.logonMode = KpzLogon
 			k := newKeyValueList()
@@ -347,7 +347,7 @@ func TestOAuthMarshalTo_Fail(t *testing.T) {
 // TestOAuth_prepareForOAUTH tests the prepareForOAUTH method.
 func TestOAuth_prepareForOAUTH(t *testing.T) {
 	t.Parallel()
-	oauth := NewOAuth18().(*oAuth)
+	oauth := newOAuth18().(*oAuth)
 	user := "testuser"
 	password := common.StringToB1Array("testpass")
 
@@ -381,7 +381,7 @@ func TestOAuth_initializeLogonModeForOAUTH(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			oauth := NewOAuth().(*oAuth)
+			oauth := newOAuth().(*oAuth)
 			oauth.initializeLogonModeForOAUTH(common.B1Array(tc.user), tc.logonMode, tc.password)
 			if oauth.logonMode != tc.expectedMode {
 				t.Errorf("Expected logonMode %d, got %d", tc.expectedMode, oauth.logonMode)
@@ -393,7 +393,7 @@ func TestOAuth_initializeLogonModeForOAUTH(t *testing.T) {
 // TestOAuth_setPasswordKeyValsForOAUTH tests password key-value setting.
 func TestOAuth_setPasswordKeyValsForOAUTH(t *testing.T) {
 	t.Parallel()
-	oauth := NewOAuth().(*oAuth)
+	oauth := newOAuth().(*oAuth)
 	k := newKeyValueList()
 	oauth.keyValList = k
 
@@ -435,7 +435,7 @@ func TestOAuth_setPasswordKeyValsForOAUTH(t *testing.T) {
 // TestOAuth_setPasswordKeyValsForOAUTH_WithEncryptedKB tests with encrypted KB.
 func TestOAuth_setPasswordKeyValsForOAUTH_WithEncryptedKB(t *testing.T) {
 	t.Parallel()
-	oauth := NewOAuth().(*oAuth)
+	oauth := newOAuth().(*oAuth)
 	k := newKeyValueList()
 	oauth.keyValList = k
 	oauth.encryptedKB = []byte("encryptedKB")
@@ -477,11 +477,11 @@ func TestOAuth_setVSessionKeyValsForOAUTHIsConnectionLocal(t *testing.T) {
 		return ""
 	}
 
-	first := NewOAuth().(*oAuth)
+	first := newOAuth().(*oAuth)
 	first.setConnectString("first")
 	first.setVSessionKeyValsForOAUTH()
 
-	second := NewOAuth().(*oAuth)
+	second := newOAuth().(*oAuth)
 	second.setConnectString("second")
 	second.setVSessionKeyValsForOAUTH()
 
@@ -498,7 +498,7 @@ func TestOAuth_setVSessionKeyValsForOAUTHIsConnectionLocal(t *testing.T) {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
-			oauth := NewOAuth().(*oAuth)
+			oauth := newOAuth().(*oAuth)
 			oauth.setConnectString(expected)
 			oauth.setVSessionKeyValsForOAUTH()
 			if got := connectString(oauth); got != expected {
@@ -512,7 +512,7 @@ func TestOAuth_setVSessionKeyValsForOAUTHIsConnectionLocal(t *testing.T) {
 // TestOAuth_setDriverIdentityKeyValsForOAUTH tests driver identity key-value setting.
 func TestOAuth_setDriverIdentityKeyValsForOAUTH(t *testing.T) {
 	t.Parallel()
-	oauth := NewOAuth().(*oAuth)
+	oauth := newOAuth().(*oAuth)
 	k := newKeyValueList()
 	oauth.keyValList = k
 
@@ -561,7 +561,7 @@ func TestOAuth_setDriverIdentityKeyValsForOAUTH(t *testing.T) {
 // TestOAuth_setAlterSessionKeyValsForOAUTH tests alter session key-value setting.
 func TestOAuth_setAlterSessionKeyValsForOAUTH(t *testing.T) {
 	t.Parallel()
-	oauth := NewOAuth().(*oAuth)
+	oauth := newOAuth().(*oAuth)
 	k := newKeyValueList()
 	oauth.keyValList = k
 
@@ -598,7 +598,7 @@ func TestOAuth_validateKeySizeForOAUTH_Success(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			oauth := NewOAuth().(*oAuth)
+			oauth := newOAuth().(*oAuth)
 			oauth.encryptedSK = tc.encryptedSK
 			oauth._bUseO5Logon = tc.bUseO5Logon
 
@@ -625,7 +625,7 @@ func TestOAuth_validateKeySizeForOAUTH_Failure(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			oauth := NewOAuth().(*oAuth)
+			oauth := newOAuth().(*oAuth)
 			oauth.encryptedSK = tc.encryptedSK
 			oauth._bUseO5Logon = tc.bUseO5Logon
 
@@ -691,7 +691,7 @@ func TestOAuth_validateO5VerifierType_Success(t *testing.T) {
 
 	for _, vt := range validTypes {
 		t.Run(string(rune(vt)), func(t *testing.T) {
-			oauth := NewOAuth().(*oAuth)
+			oauth := newOAuth().(*oAuth)
 			oauth.verifierType = vt
 
 			err := oauth.setVerifierType(vt)
@@ -705,7 +705,7 @@ func TestOAuth_validateO5VerifierType_Success(t *testing.T) {
 // TestOAuth_setters tests all setter methods.
 func TestOAuth_setters(t *testing.T) {
 	t.Parallel()
-	oauth := NewOAuth().(*oAuth)
+	oauth := newOAuth().(*oAuth)
 
 	// Test setSalt
 	salt := common.StringToB1Array("salt")
@@ -764,7 +764,7 @@ func TestOAuth_setters(t *testing.T) {
 // TestOAuthRPA_NewOAuthRPA tests OAuthRPA constructor.
 func TestOAuthRPA_NewOAuthRPA(t *testing.T) {
 	t.Parallel()
-	rpa := NewOAuthRPA()
+	rpa := newOAuthRPA()
 	if rpa == nil {
 		t.Fatal("NewOAuthRPA returned nil")
 	}
@@ -781,7 +781,7 @@ func TestOAuthRPA_UnMarshalFrom_Golden(t *testing.T) {
 		t.Fatal("golden oAuth RPA payload decode returned empty")
 	}
 
-	rpa := NewOAuthRPA()
+	rpa := newOAuthRPA()
 	buf := NewArrayDataBuffer(8192)
 	_ = buf.WriteBytesWithContext(context.Background(), payload)
 	engine := NewMarshalEngine(buf, common.BIG_ENDIAN, [5]byte{Native, Universal, Universal, Universal, Universal})
@@ -870,7 +870,7 @@ func TestOAuthRPAUnMarshalFrom_Fail(t *testing.T) {
 				engine = NewMarshalEngine(buf, common.BIG_ENDIAN, [5]byte{Native, Universal, Universal, Universal, Universal})
 			}
 			session.PrintPacket(payload, 0, len(payload))
-			rpa := NewOAuthRPA()
+			rpa := newOAuthRPA()
 			unmarshallable, _ := rpa.(common.UnMarshallable)
 			err := unmarshallable.UnMarshalFrom(context.Background(), engine)
 
@@ -887,7 +887,7 @@ func TestOAuthRPAUnMarshalFrom_Fail(t *testing.T) {
 // TestOAuthRPA_UnMarshalFrom_Fail tests failed unmarshaling.
 func TestOAuthRPA_UnMarshalFrom_Fail(t *testing.T) {
 	t.Parallel()
-	rpa := NewOAuthRPA().(*OAuthRPA)
+	rpa := newOAuthRPA().(*OAuthRPA)
 	buf := NewArrayDataBuffer(1024)
 
 	// Create minimal RPA payload
@@ -905,7 +905,7 @@ func TestOAuthRPA_UnMarshalFrom_Fail(t *testing.T) {
 // TestOAuthRPA_UnMarshalFrom_Failure tests unmarshaling failure.
 func TestOAuthRPA_UnMarshalFrom_Failure(t *testing.T) {
 	t.Parallel()
-	rpa := NewOAuthRPA().(*OAuthRPA)
+	rpa := newOAuthRPA().(*OAuthRPA)
 	buf := NewArrayDataBuffer(10)
 
 	// Write invalid data
