@@ -70,9 +70,9 @@ type connection struct {
 	// or OER message (TODO).
 	_isValid bool
 
-	// _drcpState keeps track to current DRCP attachment state of the connection.
+	// _drcpState keeps track of the configured DRCP pooling mode.
 	_drcpState int
-	// _drcpState keeps track to current DRCP enablement.
+	// _drcpConnectionState keeps track of the current DRCP attachment state.
 	_drcpConnectionState int
 }
 
@@ -97,8 +97,8 @@ func newConnection(
 		ns:                   ns,
 		_isClosed:            false,
 		_isValid:             true,
-		_drcpState:           _drcpConnectionStateDetached,
-		_drcpConnectionState: _drcpDisabled,
+		_drcpState:           _drcpDisabled,
+		_drcpConnectionState: _drcpConnectionStateDetached,
 	}
 
 	if shelf.Shelf.GetDriverConfig().ConnectionProperties.ServerType == common.ServerTypePooled {
@@ -386,10 +386,18 @@ func (c *connection) AttachToResidentPool(ctx context.Context) error {
 		common.Odl.Debug("Connection.attachToDRCPool failed to send attachemnt request")
 		return common.NewOracleError(oracleErrors.DRCPAttachFailed, err)
 	}
-	c.shelf.GetMessageStreamer().Flush(ctx)
+	err = c.shelf.GetMessageStreamer().Flush(ctx)
+	if err != nil {
+		common.Odl.Debug("Connection.attachToDRCPool failed to flush attachment request", "error", err)
+		return common.NewOracleError(oracleErrors.DRCPAttachFailed, err)
+	}
+
+	streamer := c.shelf.GetMessageStreamer().(MessageStreamerInterface)
+	streamer.RegisterPreUnmarshallCallback(TTIRPA, func(mh *messageHeader) (driverCommon.Message[driverCommon.MessageType], error) {
+		return newTtiOCSessgetRpa(), nil
+	})
 
 	for {
-
 		rMsg, err := c.shelf.GetMessageStreamer().Pull(ctx, TTIRPA, TTISPF, TTISTA, TTIOER)
 		if err != nil {
 			common.Odl.Debug("Connection.attachToDRCPool error pulling the RPA")
@@ -417,20 +425,25 @@ func (c *connection) AttachToResidentPool(ctx context.Context) error {
 		case TTIRPA:
 			common.Odl.Debug("Connection.attachToDRCPool: TTIRPA received")
 		case TTIOER:
+			oer, _ := rMsg.(tTIOerIface)
+			err := oer.getError()
 			common.Odl.Debug("Connection.attachToDRCPool: TTIOER received")
 
-			// OER or STA mark the end of the processing
+			// OER or STA mark the end of the processing.
+			if err != nil {
+				return err
+			}
+			c._drcpConnectionState = _drcpConnectionStateAttached
+			common.Odl.Info("attach session completed")
 			return nil
 		case TTISTA:
 			// OER or STA mark the end of the processing
 			common.Odl.Debug("Connection.attachToDRCPool: TTISTA received")
+			c._drcpConnectionState = _drcpConnectionStateAttached
+			common.Odl.Info("attach session completed")
 			return nil
 		}
 	}
-
-	common.Odl.Info("attach session sent")
-	c._drcpState = _drcpConnectionStateAttached
-	return nil
 
 }
 func (c *connection) DetachFromResidentPool(ctx context.Context) error {
@@ -443,12 +456,8 @@ func (c *connection) DetachFromResidentPool(ctx context.Context) error {
 		common.Odl.Debug("Connection.DetachFromResidentPool called but implicit pooling is in place ")
 		return common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpState)
 	}
-	if c._drcpConnectionState == _drcpConnectionStateAttached {
+	if c._drcpConnectionState != _drcpConnectionStateAttached {
 		common.Odl.Debug("Connection.DetachFromResidentPool called but connection is already detached")
-		return common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpConnectionState)
-	}
-	if c._drcpConnectionState == _drcpImplicitPooling {
-		common.Odl.Debug("Connection.DetachFromResidentPool called but implicit pooling is in place")
 		return common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpConnectionState)
 	}
 
@@ -493,7 +502,7 @@ func (c *connection) DetachFromResidentPool(ctx context.Context) error {
 	//	}
 	//}
 	common.Odl.Debug("release session sent")
-	c._drcpState = _drcpConnectionStateDetached
+	c._drcpConnectionState = _drcpConnectionStateDetached
 
 	return nil
 }

@@ -336,6 +336,10 @@ func init() {
 	if err != nil {
 		common.Odl.Warn("Failed to register Commit function", "error", err)
 	}
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIFUN, functionType: ocsessget}, 18, newttiOCSessget18)
+	if err != nil {
+		common.Odl.Warn("Failed to register OCSSESSGET protocol 18 function", "error", err)
+	}
 
 	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIRPA, functionType: ocsessget}, MinTTCProtocolVersion, newTtiOCSessgetRpa)
 	if err != nil {
@@ -346,6 +350,10 @@ func init() {
 	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIONEWAYFN, functionType: ocsessrls}, MinTTCProtocolVersion, newttiOCSessrel)
 	if err != nil {
 		common.Odl.Warn("Failed to register Commit function", "error", err)
+	}
+	err = FunctionRegistry.Register(functionRegistryKey{messageType: TTIONEWAYFN, functionType: ocsessrls}, 18, newttiOCSessrel18)
+	if err != nil {
+		common.Odl.Warn("Failed to register OCSSESSREL protocol 18 function", "error", err)
 	}
 
 	// Initialize our type representation table

@@ -48,6 +48,7 @@ import (
 
 // ttiOCSessrel server's "session-release values" message for a pooled-session release.
 type ttiOCSessrel struct {
+	header      driverCommon.Marshallable
 	sessrlstag  string
 	sessrlsmode driverCommon.UB4
 }
@@ -56,12 +57,23 @@ type ttiOCSessrel struct {
 // The returned value implements common.Message and is intended to be populated
 // via UnMarshalFrom by the MessageStreamer.
 func newttiOCSessrel() driverCommon.Message[driverCommon.MessageType] {
-
-	return &ttiOCSessrel{sessrlsmode: 0}
+	return &ttiOCSessrel{
+		header:      &ttiFunHeader{_funcType: ocsessrls},
+		sessrlsmode: 0,
+	}
 }
 
-// GetMsgCode implements common.Message and identifies this message as TTISPF
-// (Server-side piggyback).
+// newttiOCSessrel18 allocates an OCSSESSREL message using the protocol 18
+// function header, which includes the token field.
+func newttiOCSessrel18() driverCommon.Message[driverCommon.MessageType] {
+	return &ttiOCSessrel{
+		header:      &ttiFunHeader18{ttiFunHeader: &ttiFunHeader{_funcType: ocsessrls}},
+		sessrlsmode: 0,
+	}
+}
+
+// GetMsgCode implements common.Message and identifies this message as a
+// TTIONEWAYFN request.
 func (spf *ttiOCSessrel) GetMsgCode() driverCommon.MessageType {
 	return TTIONEWAYFN
 }
@@ -73,8 +85,13 @@ func (spf *ttiOCSessrel) GetFuncCode() driverCommon.FunctionType {
 
 // MarshalTo writes a OCSSESSREL payload from the wire.
 func (spf *ttiOCSessrel) MarshalTo(ctx context.Context, engine driverCommon.Marshaller) error {
+	err := spf.header.MarshalTo(ctx, engine)
+	if err != nil {
+		common.Odl.Warn("Failed to marshall OCSSESSREL header", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
 
-	err := engine.MarshalSB4(ctx, 0)
+	err = engine.MarshalSB4(ctx, 0)
 	if err != nil {
 		common.Odl.Warn("Failed to marshall OCSSESSREL", "error", err)
 		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)

@@ -50,6 +50,7 @@ import (
 // This message is received from the server and therefore only implements
 // UnMarshalFrom and GetMsgCode; it does not support MarshalTo.
 type ttiOCSessget struct {
+	header        driverCommon.Marshallable
 	sessgetOkvn   driverCommon.UB2 // Number of keyvalue pair
 	sessgetFlags  driverCommon.UB4 // (oracle to user) SessionGet flags
 	sessigetFlags driverCommon.UB2 // (user to oracle) SessionGet flag to enable partial match
@@ -60,8 +61,17 @@ type ttiOCSessget struct {
 // The returned value implements common.Message and is intended to be populated
 // via UnMarshalFrom by the MessageStreamer.
 func newttiOCSessget() driverCommon.Message[driverCommon.MessageType] {
+	return &ttiOCSessget{
+		header: &ttiFunHeader{_funcType: ocsessget},
+	}
+}
 
-	return &ttiOCSessget{}
+// newttiOCSessget18 allocates an OCSSESSGET message using the protocol 18
+// function header, which includes the token field.
+func newttiOCSessget18() driverCommon.Message[driverCommon.MessageType] {
+	return &ttiOCSessget{
+		header: &ttiFunHeader18{ttiFunHeader: &ttiFunHeader{_funcType: ocsessget}},
+	}
 }
 
 // GetMsgCode implements common.Message and identifies this message as ttiSPFOCSessget
@@ -76,11 +86,17 @@ func (fun *ttiOCSessget) GetFuncCode() driverCommon.FunctionType {
 
 // MarshalTo writes a OCSSESSGET payload to the wire.
 func (fun *ttiOCSessget) MarshalTo(ctx context.Context, engine driverCommon.Marshaller) error {
+	err := fun.header.MarshalTo(ctx, engine)
+	if err != nil {
+		common.Odl.Warn("Failed to marshall OCSSESSGET header", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
+
 	// no flag used for now
 	fun.sessigetFlags = 0
 	buf := dynamicAllocatedArray{value: []byte{}}
 
-	err := buf.MarshalTo(ctx, engine) // kvals from srv. (O2U)
+	err = buf.MarshalTo(ctx, engine) // kvals from srv. (O2U)
 	if err != nil {
 		common.Odl.Warn("Failed to marshall OCSSESSGET", "error", err)
 		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
@@ -106,6 +122,10 @@ func (fun *ttiOCSessget) MarshalTo(ctx context.Context, engine driverCommon.Mars
 		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
 	}
 	err = engine.MarshalPTR(ctx) // Return Tag Length Pointer (O2U)
+	if err != nil {
+		common.Odl.Warn("Failed to marshall OCSSESSGET", "error", err)
+		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	}
 
 	return nil
 }
