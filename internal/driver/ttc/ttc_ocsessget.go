@@ -53,7 +53,7 @@ type ttiOCSessget struct {
 	header        driverCommon.Marshallable
 	sessgetOkvn   driverCommon.UB2 // Number of keyvalue pair
 	sessgetFlags  driverCommon.UB4 // (oracle to user) SessionGet flags
-	sessigetFlags driverCommon.UB2 // (user to oracle) SessionGet flag to enable partial match
+	sessigetFlags driverCommon.UB2 // (user to oracle) SessionGet flags to enable partial match
 	returnTag     string           // Return Connection Tags
 }
 
