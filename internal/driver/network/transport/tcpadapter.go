@@ -39,10 +39,13 @@
 package transport
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -55,6 +58,13 @@ const (
 	DEFAULT_HTTPS_PROXY_PORT = 80
 	TCPCHA                   = 1<<1 | 1<<2 | 1<<3 | 1<<8 | 1<<9 | 1<<12
 )
+
+func httpsProxyPortOrDefault(port int) int {
+	if port == 0 {
+		return DEFAULT_HTTPS_PROXY_PORT
+	}
+	return port
+}
 
 // nttcp represents a TCP network transport adapter
 type nttcp struct {
@@ -212,6 +222,11 @@ func (nt *nttcp) Receive(ctx context.Context, buf []byte, bytes2Read int) (int, 
 // nTConnect establishes a TCP connection
 func (nt *nttcp) nTConnect(ctx context.Context, address Address) error {
 
+	targetHost := address.Hostname
+	if targetHost == "" {
+		targetHost = address.Host
+	}
+	target := net.JoinHostPort(targetHost, strconv.Itoa(int(address.Port)))
 	var httpsProxy string
 	var httpsProxyPort int
 	if address.HTTPSProxy != "" {
@@ -221,14 +236,6 @@ func (nt *nttcp) nTConnect(ctx context.Context, address Address) error {
 		httpsProxy = nt.atts.HttpsProxy
 		httpsProxyPort = nt.atts.HttpsProxyPort
 	}
-	if httpsProxyPort == 0 {
-		httpsProxyPort = DEFAULT_HTTPS_PROXY_PORT
-	}
-
-	if httpsProxy != "" {
-		return common.NewOracleError(oracleErrors.UnsupportedFeature, nil, "HTTPS proxy")
-	}
-
 	var dialer net.Dialer
 
 	var dialCtxToBeUsed context.Context
@@ -244,31 +251,104 @@ func (nt *nttcp) nTConnect(ctx context.Context, address Address) error {
 					nt.atts.Connectionid))
 		defer dialCancelToBeUsed()
 	}
+	dialAddress := address.String()
+	if httpsProxy != "" {
+		httpsProxyPort = httpsProxyPortOrDefault(httpsProxyPort)
+		dialAddress = net.JoinHostPort(httpsProxy, strconv.Itoa(httpsProxyPort))
+	}
 	common.Odl.Debug("dialing remote host")
-	conn, err := dialer.DialContext(dialCtxToBeUsed, "tcp", address.String())
+	conn, err := dialer.DialContext(dialCtxToBeUsed, "tcp", dialAddress)
 	if err != nil {
-		opError := err.(*net.OpError)
-		if errors.Is(err, context.DeadlineExceeded) ||
-			opError.Timeout() {
-			reportedCause := context.Cause(dialCtxToBeUsed)
-			if sqlE, ok := reportedCause.(oracleErrors.SQLError); ok {
-				return sqlE
-			}
-			if te, ok := reportedCause.(common.CtxTimeoutCauseError); ok {
-				return te
-			}
-			// deal with a context case now as we always want an oracleErrors
-			return common.NewOracleError(oracleErrors.CtxTimeout, nil, "CONNECT",
-				address.String(), nt.atts.Connectionid)
+		if httpsProxy == "" {
+			return normalizeDialError(dialCtxToBeUsed, err, address, nt.atts.Connectionid)
 		}
-		if opError.Op == "dial" && errors.Is(opError.Err, syscall.ECONNREFUSED) {
-			return common.NewOracleError(oracleErrors.NoListenerAvailable, nil, address.String())
+		proxyAddress := address
+		proxyAddress.Host = httpsProxy
+		proxyAddress.Port = uint16(httpsProxyPort)
+		return normalizeDialError(dialCtxToBeUsed, err, proxyAddress, nt.atts.Connectionid)
+	}
+	if httpsProxy != "" {
+		request, reqErr := http.NewRequestWithContext(dialCtxToBeUsed, http.MethodConnect, "http://"+target, nil)
+		if reqErr != nil {
+			_ = conn.Close()
+			return common.NewOracleError(oracleErrors.HTTPSProxyConnectFailed, reqErr, target)
 		}
-		return err
+		request.Host = target
+		reader := bufio.NewReader(conn)
+		type proxyHandshakeResult struct {
+			response *http.Response
+			err      error
+		}
+		resultCh := make(chan proxyHandshakeResult, 1)
+		go func() {
+			if err := request.Write(conn); err != nil {
+				resultCh <- proxyHandshakeResult{err: err}
+				return
+			}
+			response, err := http.ReadResponse(reader, request)
+			resultCh <- proxyHandshakeResult{response: response, err: err}
+		}()
+
+		var response *http.Response
+		select {
+		case result := <-resultCh:
+			response = result.response
+			if result.err != nil {
+				_ = conn.Close()
+				return common.NewOracleError(oracleErrors.HTTPSProxyConnectFailed, result.err, target)
+			}
+		case <-dialCtxToBeUsed.Done():
+			// Interrupt a blocked Request.Write or ReadResponse, then wait for
+			// the goroutine before closing the connection.
+			_ = conn.SetDeadline(time.Now())
+			<-resultCh
+			_ = conn.Close()
+			if timeoutCause, ok := context.Cause(dialCtxToBeUsed).(common.CtxTimeoutCauseError); ok {
+				return timeoutCause
+			}
+			return common.NewOracleError(oracleErrors.HTTPSProxyConnectFailed,
+				context.Cause(dialCtxToBeUsed), target)
+		}
+		if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+			_ = response.Body.Close()
+			_ = conn.Close()
+			return common.NewOracleError(oracleErrors.HTTPSProxyConnectFailed, errors.New(response.Status), target)
+		}
+		_ = response.Body.Close()
 	}
 	nt.stream = conn
 	nt.connected = true
 	return nil
+}
+
+// normalizeDialError preserves DNS errors so callers can distinguish a failed
+// hostname lookup from a failed TCP connection to a resolved endpoint.
+func normalizeDialError(ctx context.Context, err error, address Address, connectionID string) error {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return err
+	}
+
+	var opError *net.OpError
+	if !errors.As(err, &opError) {
+		return err
+	}
+	if errors.Is(err, context.DeadlineExceeded) || opError.Timeout() {
+		reportedCause := context.Cause(ctx)
+		if sqlE, ok := reportedCause.(oracleErrors.SQLError); ok {
+			return sqlE
+		}
+		if te, ok := reportedCause.(common.CtxTimeoutCauseError); ok {
+			return te
+		}
+		// deal with a context case now as we always want an oracleErrors
+		return common.NewOracleError(oracleErrors.CtxTimeout, nil, "CONNECT",
+			address.String(), connectionID)
+	}
+	if opError.Op == "dial" && errors.Is(opError.Err, syscall.ECONNREFUSED) {
+		return common.NewOracleError(oracleErrors.NoListenerAvailable, nil, address.String())
+	}
+	return err
 }
 
 // Connect establishes a network transport connection
@@ -276,6 +356,9 @@ func (nt *nttcp) Connect(ctx context.Context, address Address) error {
 	nt.originHost = address.OriginHost
 	nt.host = address.Host
 	nt.hostname = address.Hostname
+	if nt.hostname == "" {
+		nt.hostname = address.Host
+	}
 	nt.port = address.Port
 
 	if err := nt.nTConnect(ctx, address); err != nil {

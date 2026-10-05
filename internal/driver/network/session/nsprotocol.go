@@ -50,6 +50,7 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/oracle/go-oracledb/v26/internal/common"
@@ -175,8 +176,8 @@ func remoteTCPAddrFromConn(remoteAddr net.Addr) *net.TCPAddr {
 
 // transportConnect establishes the transport-level connection
 func (ns *networkSession) transportConnect(ctx context.Context, address transport.Address) error {
-	if address.Protocol == driverCommon.ProtocolTCP && address.HTTPSProxy != "" {
-		return common.NewOracleError(oracleErrors.UnsupportedFeature, nil, "HTTPS proxy")
+	if address.Protocol == driverCommon.ProtocolTCP && (address.HTTPSProxy != "" || ns.sAtts.nt.HttpsProxy != "") {
+		return common.NewOracleError(oracleErrors.HTTPSProxyRequiresTCPS, nil)
 	}
 	if ns.ntAdapter == nil {
 		if address.Protocol == driverCommon.ProtocolTCP {
@@ -187,6 +188,19 @@ func (ns *networkSession) transportConnect(ctx context.Context, address transpor
 	}
 	err := ns.ntAdapter.Connect(ctx, address)
 	if err != nil {
+		// Only transport connection failures can mean that an endpoint is down.
+		// Oracle Net, TLS, and authentication failures happen later and do not
+		// reach this point. When a proxy is configured, the failure may belong
+		// to the proxy rather than the database endpoint, so do not cache the
+		// database address as down.
+		proxyConfigured := address.HTTPSProxy != "" || ns.sAtts.nt.HttpsProxy != ""
+		if !proxyConfigured && isDownHostError(ctx, err) {
+			key := address.ResolvedIP
+			if key == "" {
+				key = address.Host
+			}
+			naming.MarkDownHost(key)
+		}
 		return err
 	}
 	//initializes sndDatapkt with SDU size
@@ -200,6 +214,44 @@ func (ns *networkSession) transportConnect(ctx context.Context, address transpor
 	ns.rcvDatapkt = &dataPacket{}
 	return nil
 }
+
+// isDownHostError identifies transport failures that indicate a host or its
+// route is currently unavailable. A refusal is deliberately excluded: it
+// proves that the host responded, even when no listener is available there.
+func isDownHostError(ctx context.Context, err error) bool {
+	// The TCP adapter translates a caller deadline into an Oracle CtxTimeout
+	// error. Check both the context and the error before considering timeout
+	// errors below, so a caller giving up does not penalize a healthy endpoint.
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) ||
+		errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return false
+	}
+
+	if errors.Is(err, syscall.EHOSTDOWN) ||
+		errors.Is(err, syscall.EHOSTUNREACH) ||
+		errors.Is(err, syscall.ENETUNREACH) {
+		return true
+	}
+
+	var timeoutCause common.CtxTimeoutCauseError
+	if errors.As(err, &timeoutCause) {
+		return true
+	}
+
+	var sqlErr oracleErrors.SQLError
+	if errors.As(err, &sqlErr) && sqlErr.ErrorCode() == string(oracleErrors.CtxTimeout) {
+		return true
+	}
+
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
 func (ns *networkSession) handleAccept(ctx context.Context, p *acceptPacket) error {
 	if ns.sAtts.version < TNS_VERSION_MINIMUM {
 		err := ns.Disconnect(ctx, 0)
@@ -369,13 +421,17 @@ func (ns *networkSession) handleRedirect(ctx context.Context, p *redirectPacket,
 		}
 		newAddress := transport.Address{
 			Address: naming.Address{
-				Host:       hostToBeUsed,
-				Port:       redirOption.Address.Port,
-				Protocol:   redirOption.Address.Protocol,
-				OriginHost: oldhostname,
-				ResolvedIP: redirOption.Address.ResolvedIP,
+				Host:           hostToBeUsed,
+				Port:           redirOption.Address.Port,
+				Protocol:       redirOption.Address.Protocol,
+				HTTPSProxy:     address.HTTPSProxy,
+				HTTPSProxyPort: address.HTTPSProxyPort,
+				OriginHost:     oldhostname,
+				ResolvedIP:     redirOption.Address.ResolvedIP,
 			},
-			Hostname: redirOption.Address.Host,
+			Hostname:       redirOption.Address.Host,
+			HTTPSProxy:     address.HTTPSProxy,
+			HTTPSProxyPort: address.HTTPSProxyPort,
 		}
 		ns.ntAdapter.Disconnect()
 		ns.connected = false
@@ -534,12 +590,16 @@ func ConnectToOption(ctx context.Context, option *naming.ConnectionOption, conne
 	}
 	address := transport.Address{
 		Address: naming.Address{
-			Host:       hostToBeUsed,
-			Port:       portToBeUsed,
-			Protocol:   addressOption.Protocol,
-			ResolvedIP: addressOption.ResolvedIP,
+			Host:           hostToBeUsed,
+			Port:           portToBeUsed,
+			Protocol:       addressOption.Protocol,
+			ResolvedIP:     addressOption.ResolvedIP,
+			HTTPSProxy:     addressOption.HTTPSProxy,
+			HTTPSProxyPort: addressOption.HTTPSProxyPort,
 		},
-		Hostname: addressOption.Host,
+		Hostname:       addressOption.Host,
+		HTTPSProxy:     addressOption.HTTPSProxy,
+		HTTPSProxyPort: addressOption.HTTPSProxyPort,
 	}
 
 	err = ns.connect(ctx, address)
