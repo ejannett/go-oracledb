@@ -76,9 +76,6 @@ const (
 	ocshrdkey    common.FunctionType = 11 // sharding key to client
 	maxOcfn      common.FunctionType = 11 // last item al
 
-
-
 	ocsessget common.FunctionType = 162
 	ocsessrls common.FunctionType = 163
-
 )

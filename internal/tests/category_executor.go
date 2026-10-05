@@ -77,7 +77,7 @@ func RunCategoryExecutor(t *testing.T, categories TestCategoryList, cases []Cate
 			} else {
 				regularCases = append(regularCases, c)
 			}
-		} 
+		}
 	}
 
 	if len(regularCases) > 0 {

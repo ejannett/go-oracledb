@@ -67,7 +67,7 @@ func (c *connection) ResetSession(ctx context.Context) error {
 	}
 
 	statements := c.shelf.GetStatements(true)
-	common.Odl.Debug("closing [%d] statements", len(statements))
+	common.Odl.Debug("closing statements", "count", len(statements))
 	for _, statement := range statements {
 		if err := statement.Close(); err != nil {
 			common.Odl.Warn("Stale statement left in connection cannot be closed", "error", err)

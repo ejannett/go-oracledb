@@ -95,7 +95,6 @@ type ConnectionInstantiator interface {
 	GetConnection(ctx context.Context) (driver.Conn, error)
 }
 
-
 type DRCPUser interface {
 	// AttachToResidentPool Attach the connection to the remote pool.
 	// Errors: OGD-00180 / OGD-00181

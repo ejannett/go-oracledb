@@ -514,7 +514,7 @@ func unmarshalEndOfCallStatus(ctx context.Context, mar driverCommon.Marshaller) 
 
 	if (ucaeocs & TtiEocRel) != 0 {
 		retVal.connectionDRCPDetached = true
-		common.Odl.Debug("tTIoer.UnMarshalFrom: EOCS ", "TtiEocRel received")
+		common.Odl.Debug("tTIoer", "UnMarshalFrom", "TtiEocRel received")
 	}
 	return retVal, nil
 }

@@ -60,6 +60,7 @@ type connectionInstantiator struct {
 	newConnectionFunc   func(context.Context, *ttiShelf[driverCommon.MessageType], *driverCommon.SessionContext, driverCommon.NetworkSession) (*connection, error)
 	localizationService common.LocalizationService
 	providerRegistry    common.Registry[oracleProviders.Provider]
+	uuid                string // session uuid to be used
 }
 
 // NewTTCConnectionInstantiator creates a new TTC connection instantiator.
@@ -72,7 +73,7 @@ type connectionInstantiator struct {
 // Returns:
 //   - the TTC connection instantiator bound to ns.
 //   - an error if the authenticator or instantiator cannot be initialized.
-func NewTTCConnectionInstantiator(config *oracleconfig.OracleDriverConfig, ns driverCommon.NetworkSession, providerRegistry common.Registry[oracleProviders.Provider]) (driverCommon.ConnectionInstantiator, error) {
+func NewTTCConnectionInstantiator(uuid string, config *oracleconfig.OracleDriverConfig, ns driverCommon.NetworkSession, providerRegistry common.Registry[oracleProviders.Provider]) (driverCommon.ConnectionInstantiator, error) {
 	dataBuffer := ns.(driverCommon.DataBuffer)
 	negotiator := GetNegotiator(dataBuffer)
 	localizationService := common.NewLocalizationService(config.Locale.ClientLanguage)
@@ -90,6 +91,7 @@ func NewTTCConnectionInstantiator(config *oracleconfig.OracleDriverConfig, ns dr
 		newConnectionFunc:   newConnection,
 		localizationService: localizationService,
 		providerRegistry:    providerRegistry,
+		uuid:                uuid,
 	}, nil
 }
 
@@ -118,6 +120,11 @@ func (connInstantiator *connectionInstantiator) GetConnection(ctx context.Contex
 	sessCtx.GetClientProperties().SetProperty(driverCommon.RemoteAddress, connInstantiator.ns.GetRemoteAddress())
 	sessCtx.GetClientProperties().SetProperty(driverCommon.RemotePort, connInstantiator.ns.GetRemotePort())
 	sessCtx.GetClientProperties().SetProperty(driverCommon.ConnectDescriptor, connInstantiator.driverConfig.ConnectDescriptor)
+
+	sessCtx.GetClientProperties().SetProperty(driverCommon.SessionUuid,
+		fmt.Sprintf("%s%s",
+			connInstantiator.driverConfig.ConnectionProperties.ConnectionIdPrefix,
+			connInstantiator.uuid))
 
 	// Add connection properties to shelf for downstream consumers
 	shelf.UpdateDriverConfig(connInstantiator.driverConfig)

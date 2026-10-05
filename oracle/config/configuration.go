@@ -160,6 +160,8 @@ type OracleConnectionProperties struct {
 	ServerType string `default:"" validator:"validateServerType"  help:"sets the remote server type (POOLED|DEDICATED|SHARED)"`
 
 	Drcp DatabaseResidentConnectionPooling `isConfigGroup:"true"`
+
+	ConnectionIdPrefix string `default:"" validator:"" ns_name:"connection_id_prefix" help:"Sets the prefix for the connection ID"`
 }
 
 type DatabaseResidentConnectionPooling struct {

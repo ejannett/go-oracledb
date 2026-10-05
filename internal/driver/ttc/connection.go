@@ -370,7 +370,7 @@ func (c *connection) AttachToResidentPool(ctx context.Context) error {
 		common.Odl.Debug("Connection.attachToDRCPool called but connection is already attached")
 		return common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpConnectionState)
 	}
-	if c._drcpConnectionState == _drcpImplicitPooling {
+	if c._drcpState == _drcpImplicitPooling {
 		common.Odl.Debug("Connection.attachToDRCPool called but implicit pooling is in place")
 		return common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpConnectionState)
 	}

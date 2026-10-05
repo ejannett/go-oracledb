@@ -93,8 +93,9 @@ func (c *connection) IsValid() bool {
 
 	if c._drcpState == _drcpExplicitPooling && c._drcpConnectionState == _drcpConnectionStateAttached {
 		common.Odl.Debug("Detaching from DRCP")
-		context, _ := context.WithTimeout(context.Background(), _pingTimeout)
-		err := c.DetachFromResidentPool(context)
+		ctx, cancel := context.WithTimeout(context.Background(), _pingTimeout)
+		defer cancel()
+		err := c.DetachFromResidentPool(ctx)
 		if err != nil {
 			common.Odl.Debug("Failed to attach to the DRCP pool", "error", err)
 			c._isValid = false

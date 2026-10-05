@@ -210,8 +210,8 @@ func TestTTCRowsImplementsColumnTypeInterfaces(t *testing.T) {
 func buildTestTTCRows(nullable bool, dtype DtyType, scale int8, strictNull *bool) *ttcRows {
 	shelf := newShelf[common.MessageType]()
 	if strictNull != nil {
-		props := oracleconfig.OracleDriverProperties{}
-		props.StrictNullValueHandling = *strictNull
+		props := oracleconfig.OracleDriverConfig{}
+		props.DriverProperties.StrictNullValueHandling = *strictNull
 		shelf.Shelf.UpdateDriverConfig(&props)
 	}
 
