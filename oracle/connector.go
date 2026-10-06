@@ -42,7 +42,6 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/oracle/go-oracledb/v26/internal/common"
@@ -164,8 +163,8 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 			return nil, localizationService.LocalizeError(e)
 		}
 		tctxToBeUsed = ctx
-		if common.OdlT(sessionUid).Enabled(context.Background(), slog.LevelDebug) {
-			common.OdlT(sessionUid).Debug("Connector.Connect",
+		if common.OdlT(sessionUid).Enabled(context.Background(), common.OlFine) {
+			common.OdlT(sessionUid).Fine("Connector.Connect",
 				"option",
 				option)
 		}
@@ -203,7 +202,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, localizationService.LocalizeError(e)
 	}
 
-	common.OdlT(sessionUid).Debug("Network session established")
+	common.OdlT(sessionUid).Fine("Network session established")
 
 	connInstantiator, err := c.connInstantiatorFactory(c.connectorConfig, ns, c.providerRegistry)
 	if err != nil {

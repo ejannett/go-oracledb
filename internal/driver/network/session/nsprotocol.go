@@ -557,7 +557,7 @@ func ConnectToOptionWithConnectionID(ctx context.Context, option *naming.Connect
 
 	portToBeUsed := addressOption.Port
 	if addressOption.Port == 0 {
-		common.Odl.Debug("no port specified, fall-back to default", "port", TCP_DEFAULT_PORT)
+		common.Odl.Fine("no port specified, fall-back to default", "port", TCP_DEFAULT_PORT)
 		portToBeUsed = TCP_DEFAULT_PORT
 	}
 
@@ -695,7 +695,7 @@ func (ns *networkSession) recvPacket(ctx context.Context) (any, error) {
 
 	// Handle reset when break is received and reset has not yet been received.
 	if hdr.typ == NSPTMK && ns.isBreak && !ns.isReset {
-		common.Odl.Debug("Received break packet from server")
+		common.Odl.Fine("Received break packet from server")
 		if ns.resetInProgress {
 			// Reset is already draining packets until NIQRMARK is received.
 			// Return this marker to the Reset loop instead of recursively
@@ -788,7 +788,7 @@ func (ns *networkSession) processPacket(buf []byte, hdr *header) (any, error) {
 	}
 	if hdr.typ == NSPTMK {
 		p := packet.(*markerPacket)
-		common.Odl.Debug("marker packet received", "marker-type", p.markerType, "data", p.data)
+		common.Odl.Finest("marker packet received", "marker-type", p.markerType, "data", p.data)
 		switch p.markerType {
 		case NSPMKTD0:
 			ns.isBreak = true
@@ -929,7 +929,7 @@ func (ns *networkSession) Reset(ctx context.Context) error {
 		return err
 	}
 	err = ns.SendPacket(ctx, markerPkt.buf)
-	common.Odl.Debug("Reset packet sent")
+	common.Odl.Fine("Reset packet sent")
 	if err != nil {
 		common.Odl.Error("An error occurred while sending reset", "error", err)
 		return err
@@ -940,7 +940,7 @@ func (ns *networkSession) Reset(ctx context.Context) error {
 			common.Odl.Error("An error occurred while receiving packet", "error", err)
 			return err
 		}
-		common.Odl.Debug("Packet received", "isReset", ns.isReset)
+		common.Odl.Fine("Packet received", "isReset", ns.isReset)
 	}
 	//reset sndDatapkt
 	ns.sndDatapkt.Reset()
@@ -949,7 +949,7 @@ func (ns *networkSession) Reset(ctx context.Context) error {
 	//set break/reset as false
 	ns.isBreak = false
 	ns.isReset = false
-	common.Odl.Debug("End of break-reset")
+	common.Odl.Fine("End of break-reset")
 	return nil
 }
 

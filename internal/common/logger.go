@@ -46,6 +46,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -89,12 +90,29 @@ const (
 
 // Fine logs a message with OlFine level
 func (l *OracleLogger) Fine(msg string, args ...any) {
-	l.Logger.Log(context.Background(), OlFine, msg, args...)
+	if !l.Enabled(context.Background(), OlFine) {
+		return
+	}
+	var pcs [1]uintptr
+	runtime.Callers(2, pcs[:]) // skip runtime.Callers, log, Fine/Finest
+	record := slog.NewRecord(time.Now(), OlFine, msg, pcs[0])
+	record.Add(args...)
+
+	_ = l.Handler().Handle(context.Background(), record)
 }
 
 // Finest logs a message with OlFinest level
 func (l *OracleLogger) Finest(msg string, args ...any) {
-	l.Logger.Log(context.Background(), OlFinest, msg, args...)
+	if !l.Enabled(context.Background(), OlFinest) {
+		return
+	}
+
+	var pcs [1]uintptr
+	runtime.Callers(2, pcs[:]) // skip runtime.Callers, log, Fine/Finest
+	record := slog.NewRecord(time.Now(), OlFinest, msg, pcs[0])
+	record.Add(args...)
+
+	_ = l.Handler().Handle(context.Background(), record)
 }
 
 // PacketDump dumps a packet to the logging handler
