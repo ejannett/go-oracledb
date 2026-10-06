@@ -47,7 +47,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"strings"
 	"syscall"
@@ -681,7 +680,8 @@ func (ns *networkSession) recvPacket(ctx context.Context) (any, error) {
 		}
 	}
 	buf := ns.rcvBuf[:packetLen]
-	PrintPacket(buf, 0, packetLen)
+
+	common.Odl.PacketDump(buf[0:packetLen])
 
 	hdr := &header{}
 	err = hdr.unmarshal(buf, ns.sAtts, nil)
@@ -1048,36 +1048,4 @@ func (ns *networkSession) CheckInbandNotification() bool {
 }
 func PrintPacket(buf []byte, offset, length int) {
 
-	if !common.Opl.Enabled(nil, slog.LevelInfo) {
-		return
-	}
-
-	var line bytes.Buffer
-	var lineL bytes.Buffer
-
-	common.Opl.Info("PrintPacket", "Capacity", len(buf),
-		"Offset", offset, "Data Length", length)
-
-	for i, b := range buf[offset : offset+length] {
-		// Format byte as 2-digit hex with leading 0
-		hexByte := fmt.Sprintf("%02X", b)
-		if line.Len() != 0 {
-			line.WriteString(" ")
-		}
-		line.WriteString(hexByte)
-		if b >= 33 && b <= 126 {
-			// Printable ASCII range
-			lineL.WriteString(fmt.Sprintf("%c", b))
-		} else {
-			// Non-printable, replace with dot
-			lineL.WriteString(".")
-		}
-
-		// If 4 bytes written or it's the last byte, print the line
-		if (i+1)%8 == 0 || i == len(buf)-1 {
-			common.Opl.Info(fmt.Sprintf("%-8s %s", lineL.String(), line.String()))
-			lineL.Reset()
-			line.Reset()
-		}
-	}
 }

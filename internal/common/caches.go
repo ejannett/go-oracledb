@@ -42,6 +42,7 @@ import (
 	"container/list"
 	"sync"
 	"time"
+	"weak"
 )
 
 // Cache interface for cache mechanism in the go driver
@@ -409,4 +410,102 @@ func NewSafeLRUCache[T any](maxSize int) *SafeLRUCache[T] {
 		lock:  sync.Mutex{},
 	}
 	return newC
+}
+
+// WeakRefCache stores values through weak references and has no maximum size.
+// Entries whose weak reference no longer points to a live value are removed
+// during periodic cleanup.
+type WeakRefCache[T any] struct {
+	cleanupInterval time.Duration
+	nextCleanup     time.Time
+	entries         map[string]weak.Pointer[T]
+}
+
+// NewWeakRefCache creates a WeakRefCache that removes nil weak references on
+// the provided cleanup interval. It returns nil when cleanupInterval is not
+// positive.
+func NewWeakRefCache[T any](cleanupInterval time.Duration) *WeakRefCache[T] {
+	if cleanupInterval <= 0 {
+		Odl.Error("cleanupInterval must be positive")
+		return nil
+	}
+
+	return &WeakRefCache[T]{
+		cleanupInterval: cleanupInterval,
+		nextCleanup:     time.Now().Add(cleanupInterval),
+		entries:         make(map[string]weak.Pointer[T]),
+	}
+}
+
+// Get returns the cached pointer for key when the weak reference still points
+// to a live value.
+func (c *WeakRefCache[T]) Get(key string) (value *T, found bool) {
+	c.cleanupIfNeeded()
+
+	entry, ok := c.entries[key]
+	if !ok {
+		return nil, false
+	}
+
+	value = entry.Value()
+	if value == nil {
+		delete(c.entries, key)
+		return nil, false
+	}
+
+	return value, true
+}
+
+// Put stores value as a weak reference and returns the previous live value for
+// key, or nil when key was not present or its previous value was already gone.
+func (c *WeakRefCache[T]) Put(key string, value *T) *T {
+	c.cleanupIfNeeded()
+
+	var previous *T
+	if entry, ok := c.entries[key]; ok {
+		previous = entry.Value()
+	}
+
+	if value == nil {
+		var zero weak.Pointer[T]
+		c.entries[key] = zero
+		return previous
+	}
+
+	c.entries[key] = weak.Make(value)
+	return previous
+}
+
+// Remove deletes a cached weak reference by key and reports whether an entry
+// was removed.
+func (c *WeakRefCache[T]) Remove(key string) bool {
+	c.cleanupIfNeeded()
+
+	if _, ok := c.entries[key]; ok {
+		delete(c.entries, key)
+		return true
+	}
+	return false
+}
+
+// Clear removes all weak references from the cache.
+func (c *WeakRefCache[T]) Clear() {
+	clear(c.entries)
+	c.nextCleanup = time.Now().Add(c.cleanupInterval)
+}
+
+func (c *WeakRefCache[T]) cleanupIfNeeded() {
+	if time.Now().Before(c.nextCleanup) {
+		return
+	}
+	c.removeNilReferences()
+	c.nextCleanup = time.Now().Add(c.cleanupInterval)
+}
+
+func (c *WeakRefCache[T]) removeNilReferences() {
+	for key, entry := range c.entries {
+		if entry.Value() == nil {
+			delete(c.entries, key)
+		}
+	}
 }

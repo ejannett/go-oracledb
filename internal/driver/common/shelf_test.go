@@ -39,10 +39,14 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 
+	internalCommon "github.com/oracle/go-oracledb/v26/internal/common"
 	oracleErrors "github.com/oracle/go-oracledb/v26/oracle/errors"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
@@ -154,6 +158,31 @@ func TestShelf_LocalizeError(t *testing.T) {
 
 	if got := shelf.LocalizeError(err); got != err {
 		t.Fatalf("expected shelf-localized error to be returned unchanged by test localization service")
+	}
+}
+
+func TestShelf_SetLogger(t *testing.T) {
+	var buf bytes.Buffer
+	previousLogger := internalCommon.Odl
+	internalCommon.Odl = internalCommon.OracleLogger{
+		Logger: *slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		})),
+	}
+	defer func() { internalCommon.Odl = previousLogger }()
+
+	shelf := NewShelf[int]()
+	if got := shelf.GetLogger(); got != &internalCommon.Odl {
+		t.Fatal("logger should default to common.Odl")
+	}
+
+	if got := shelf.SetLogger("shelf-1"); got != shelf {
+		t.Fatal("SetLogger should return shelf for chaining")
+	}
+
+	shelf.GetLogger().Info("tagged logger")
+	if got := buf.String(); !strings.Contains(got, "ID=shelf-1") {
+		t.Fatalf("expected tagged logger output to contain ID=shelf-1, got %q", got)
 	}
 }
 

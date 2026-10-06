@@ -40,11 +40,16 @@
 package common
 
 import (
+	"bytes"
+	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type LoggingConfig interface {
@@ -56,14 +61,199 @@ type LoggingConfig interface {
 	GetTruncate() bool
 }
 
-// Odl Common reference to driver logger
-var Odl = slog.New(slog.DiscardHandler)
+// Oracle driver logger type
+type OracleLogger struct {
+	slog.Logger
+	sensitiveEnabled bool // do we allow sensitive information to be logged
+}
 
-// Osl Common reference to driver sensitive information logger
-var Osl = slog.New(slog.DiscardHandler)
+// With return a sub logger for given attributes
+// see Logger.With()
+func (l *OracleLogger) With(args ...any) *OracleLogger {
+	return &OracleLogger{
+		Logger:           *l.Logger.With(args...),
+		sensitiveEnabled: false,
+	}
+}
 
-// Opl logger used for packet dump
-var Opl = slog.New(slog.DiscardHandler)
+// custom logging levels
+const (
+	OlPacketDump = slog.Level(-32) // private level to log packet dump.
+	OlFinest     = slog.Level(-16)
+	OlFine       = slog.Level(-8)
+	OlDebug      = slog.LevelDebug
+	OlInfo       = slog.LevelInfo
+	OlWarning    = slog.LevelWarn
+	OlError      = slog.LevelError
+)
+
+// Fine logs a message with OlFine level
+func (l *OracleLogger) Fine(msg string, args ...any) {
+	l.Logger.Log(context.Background(), OlFine, msg, args...)
+}
+
+// Finest logs a message with OlFinest level
+func (l *OracleLogger) Finest(msg string, args ...any) {
+	l.Logger.Log(context.Background(), OlFinest, msg, args...)
+}
+
+// PacketDump dumps a packet to the logging handler
+func (l *OracleLogger) PacketDump(buf []byte) {
+	l.LogAttrs(context.Background(), OlPacketDump, "PacketDump", slog.Any(packetDumpAttrKey, buf))
+}
+
+// keep weak reference on all tagged loggers
+var allLoggers = NewWeakRefCache[OracleLogger](time.Minute)
+var allLoggersL sync.Mutex
+
+// OdlT gets a tagged logger.
+// argument : tag, the tag for the returned sub logger
+func OdlT(tag string) *OracleLogger {
+	if len(tag) != 0 {
+		allLoggersL.Lock()
+		defer allLoggersL.Unlock()
+
+		val, ok := allLoggers.Get(tag)
+		if !ok || val == nil {
+			val = Odl.With("ID", tag)
+			allLoggers.Put(tag, val)
+		}
+		return val
+	}
+	return &Odl
+}
+
+const packetDumpAttrKey = "packet"
+
+// logging handler to handle packet dumps
+type packetDumpHandler struct {
+	*filteredHandler
+	writer io.Writer
+}
+
+// logging handler that is enabled only for a given set of levels
+// This handler will discard messages that are not with allowed levels.
+// whatever the current logger level.
+type filteredHandler struct {
+	backend slog.Handler
+	levels  []slog.Level // list of level allowed
+}
+
+// newFilteredHandler creates a new filteredHandler
+// arguments :
+//
+//	backend : the backend handler where to log messages
+//	levels: level white list.
+func newFilteredHandler(backend slog.Handler, levels ...slog.Level) *filteredHandler {
+	return &filteredHandler{levels: levels, backend: backend}
+}
+
+// newPacketDumpHandler creates a new packetDumpHandler
+// arguments :
+//
+//	out : the writer to write dumps to (using raw format)
+//	next: the actual handler to be used
+func newPacketDumpHandler(out io.Writer, next slog.Handler) *packetDumpHandler {
+	return &packetDumpHandler{filteredHandler: newFilteredHandler(next, OlPacketDump), writer: out}
+}
+
+// Enabled see slog.Logger.Enabled()
+func (h *filteredHandler) Enabled(_ context.Context, level slog.Level) bool {
+	for _, l := range h.levels {
+		if l == level {
+			return true
+		}
+	}
+	return false
+}
+
+// WithAttrs see slog.Logger.WithAttrs()
+func (h *filteredHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &filteredHandler{backend: h.backend.WithAttrs(attrs), levels: h.levels}
+}
+
+// WithGroup see slog.Logger.WithGroup()
+func (h *filteredHandler) WithGroup(name string) slog.Handler {
+	return &filteredHandler{backend: h.backend.WithGroup(name), levels: h.levels}
+}
+
+// Handle see slog.Logger.Handle()
+func (h *filteredHandler) Handle(ctx context.Context, record slog.Record) error {
+	return h.backend.Handle(ctx, record)
+}
+
+// Handle see slog.Logger.Handle()
+func (h *packetDumpHandler) Handle(ctx context.Context, record slog.Record) error {
+	var packet []byte
+	record.Attrs(func(attr slog.Attr) bool {
+		if attr.Key != packetDumpAttrKey {
+			return true
+		}
+		if value, ok := attr.Value.Any().([]byte); ok {
+			packet = value
+		}
+		return false
+	})
+	if packet == nil {
+		return h.backend.Handle(ctx, record)
+	}
+	return h.dump(ctx, record.Level, packet)
+}
+
+// WithAttrs see slog.Logger.WithAttrs()
+func (h *packetDumpHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &packetDumpHandler{filteredHandler: newFilteredHandler(h.backend.WithAttrs(attrs)), writer: h.writer}
+}
+
+// WithGroup see slog.Logger.WithGroup()
+func (h *packetDumpHandler) WithGroup(name string) slog.Handler {
+	return &packetDumpHandler{filteredHandler: newFilteredHandler(h.backend.WithGroup(name)),
+		writer: h.writer}
+}
+
+// dump dumps packet bytes to the underlying IO writer
+func (h *packetDumpHandler) dump(ctx context.Context, level slog.Level, buf []byte) error {
+	header := slog.NewRecord(time.Now(), level, "packet dump", 0)
+	header.AddAttrs(slog.Int("Data Length", len(buf)))
+	if err := h.backend.Handle(ctx, header); err != nil {
+		return err
+	}
+
+	var line bytes.Buffer
+	var lineL bytes.Buffer
+	var final bytes.Buffer
+	for i, b := range buf {
+		hexByte := fmt.Sprintf("%02X", b)
+		if line.Len() != 0 {
+			line.WriteString(" ")
+		}
+		line.WriteString(hexByte)
+		if b >= 33 && b <= 126 {
+			// Printable ASCII range
+			lineL.WriteString(fmt.Sprintf("%c", b))
+		} else {
+			// Non-printable, replace with dot
+			lineL.WriteString(".")
+		}
+
+		if (i+1)%8 == 0 || i == len(buf)-1 {
+			final.WriteString(fmt.Sprintf("%-8s %s\n", lineL.String(), line.String()))
+			lineL.Reset()
+			line.Reset()
+		}
+	}
+	_, err := h.writer.Write(final.Bytes())
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var Odl = OracleLogger{
+	Logger:           *slog.New(slog.DiscardHandler),
+	sensitiveEnabled: false,
+}
 
 // keep track if InitLoggingWithConfig has been called once.
 var ready atomic.Bool
@@ -87,16 +277,14 @@ func InitLoggingWithConfig(config LoggingConfig) {
 		currentLogCloser = nil
 	}
 
-	Odl = slog.New(slog.DiscardHandler)
-	Osl = Odl
-	Opl = Odl
+	Odl.Logger = *slog.New(slog.DiscardHandler)
+	Odl.sensitiveEnabled = false
 
 	if strings.EqualFold(config.GetDestination(), "NULL") {
 		return
 	}
 
-	var level slog.Level
-	level.UnmarshalText([]byte(config.GetLevel()))
+	level := parseOracleLogLevel(config.GetLevel())
 
 	var logOut io.Writer
 
@@ -122,19 +310,35 @@ func InitLoggingWithConfig(config LoggingConfig) {
 	}
 
 	var handler = slog.NewTextHandler(logOut, &slog.HandlerOptions{
-		AddSource: level == slog.LevelDebug,
+		AddSource: level <= slog.LevelDebug,
 		Level:     level,
 	})
 
-	Odl = slog.New(handler)
-
 	if config.GetIncludeSensitive() {
-		Osl = Odl
+		Odl.sensitiveEnabled = true
 	}
 
 	v, p := os.LookupEnv("ORACLE_GO_DRIVER_DEBUG_PACKETS")
 	if p == true && v == "true" && config.GetIncludeSensitive() {
-		Opl = slog.New(handler)
+		multiHandler := slog.NewMultiHandler(
+			newFilteredHandler(handler, OlFinest, OlFine, OlDebug, OlInfo, OlWarning, OlError),
+			newPacketDumpHandler(logOut, handler))
+		Odl.Logger = *slog.New(multiHandler)
+	} else {
+		Odl.Logger = *slog.New(handler)
 	}
 
+}
+
+func parseOracleLogLevel(value string) slog.Level {
+	switch strings.ToUpper(value) {
+	case "FINEST":
+		return OlFinest
+	case "FINE":
+		return OlFine
+	default:
+		var level slog.Level
+		_ = level.UnmarshalText([]byte(value))
+		return level
+	}
 }
