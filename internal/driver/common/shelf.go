@@ -60,7 +60,6 @@ type Shelf[T any] struct {
 	localizationService  common.LocalizationService
 	capabilities         map[string]Capability
 	connectionProperties DriverProperties // connectionProperties represents the connection properties set in dsn string
-	logger               *common.OracleLogger
 }
 
 // NewShelf Creates a new Shelf
@@ -71,7 +70,6 @@ func NewShelf[T any]() *Shelf[T] {
 		msgStmr:              nil,
 		localizationService:  nil,
 		connectionProperties: nil,
-		logger:               nil,
 	}
 }
 
@@ -104,12 +102,6 @@ func (s *Shelf[T]) RegisterMessageStreamer(msgStmr Streamer[T]) *Shelf[T] {
 // Existing instance is replaced by the one passed as parameter.
 func (s *Shelf[T]) RegisterLocalizationService(localizationService common.LocalizationService) *Shelf[T] {
 	s.localizationService = localizationService
-	return s
-}
-
-// SetLogger creates a shelf-local logger tagged with the provided identifier.
-func (s *Shelf[T]) SetLogger(tag string) *Shelf[T] {
-	s.logger = common.Odl.With("ID", tag)
 	return s
 }
 
@@ -153,13 +145,6 @@ func (s *Shelf[T]) GetLocalizationService() common.LocalizationService {
 	return s.localizationService
 }
 
-// GetLogger retrieves the driver logger used by shelf-owned operations.
-func (s *Shelf[T]) GetLogger() *common.OracleLogger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return &common.Odl
-}
 
 // LocalizeError localizes the provided error with the localization service
 // registered on the shelf. If no localization service is registered, the error

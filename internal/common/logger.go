@@ -79,7 +79,7 @@ func (l *OracleLogger) With(args ...any) *OracleLogger {
 
 // custom logging levels
 const (
-	OlPacketDump = slog.Level(-32) // private level to log packet dump.
+	OlPacketDump = slog.Level(-32) // private level to log packet dumps.
 	OlFinest     = slog.Level(-16)
 	OlFine       = slog.Level(-8)
 	OlDebug      = slog.LevelDebug
@@ -89,12 +89,16 @@ const (
 )
 
 // Fine logs a message with OlFine level
+// parameters:
+//  - msg message to be written
+//  - args attributes
 func (l *OracleLogger) Fine(msg string, args ...any) {
 	if !l.Enabled(context.Background(), OlFine) {
 		return
 	}
+	// not goign back in the stack will alwasy display Fine() as source
 	var pcs [1]uintptr
-	runtime.Callers(2, pcs[:]) // skip runtime.Callers, log, Fine/Finest
+	runtime.Callers(2, pcs[:])
 	record := slog.NewRecord(time.Now(), OlFine, msg, pcs[0])
 	record.Add(args...)
 
@@ -102,11 +106,14 @@ func (l *OracleLogger) Fine(msg string, args ...any) {
 }
 
 // Finest logs a message with OlFinest level
+// parameters:
+//  - msg message to be written
+//  - args attributes
 func (l *OracleLogger) Finest(msg string, args ...any) {
 	if !l.Enabled(context.Background(), OlFinest) {
 		return
 	}
-
+	// not goign back in the stack will alwasy display Finest() as source
 	var pcs [1]uintptr
 	runtime.Callers(2, pcs[:]) // skip runtime.Callers, log, Fine/Finest
 	record := slog.NewRecord(time.Now(), OlFinest, msg, pcs[0])
@@ -116,16 +123,23 @@ func (l *OracleLogger) Finest(msg string, args ...any) {
 }
 
 // PacketDump dumps a packet to the logging handler
-func (l *OracleLogger) PacketDump(buf []byte) {
-	l.LogAttrs(context.Background(), OlPacketDump, "PacketDump", slog.Any(packetDumpAttrKey, buf))
+// parameters:
+//   - packetBytes : the byte of the network packet
+func (l *OracleLogger) PacketDump(packetBytes []byte) {
+	l.LogAttrs(context.Background(),
+		OlPacketDump, "PacketDump", slog.Any(packetDumpAttrKey, packetBytes))
 }
 
-// keep weak reference on all tagged loggers
+// keep weak references on all tagged loggers
 var allLoggers = NewWeakRefCache[OracleLogger](time.Minute)
+// lock to keeo maop access safe
 var allLoggersL sync.Mutex
 
 // OdlT gets a tagged logger.
-// argument : tag, the tag for the returned sub logger
+// argument :
+//   - tag, the tag for the returned sub logger
+// returns:
+//   - a previously allocated sub looger or a new one if one is not already available
 func OdlT(tag string) *OracleLogger {
 	if len(tag) != 0 {
 		allLoggersL.Lock()
@@ -159,18 +173,20 @@ type filteredHandler struct {
 
 // newFilteredHandler creates a new filteredHandler
 // arguments :
-//
 //	backend : the backend handler where to log messages
 //	levels: level white list.
+// returns:
+//  a new handler
 func newFilteredHandler(backend slog.Handler, levels ...slog.Level) *filteredHandler {
 	return &filteredHandler{levels: levels, backend: backend}
 }
 
 // newPacketDumpHandler creates a new packetDumpHandler
 // arguments :
-//
 //	out : the writer to write dumps to (using raw format)
 //	next: the actual handler to be used
+// returns:
+//  a new handler
 func newPacketDumpHandler(out io.Writer, next slog.Handler) *packetDumpHandler {
 	return &packetDumpHandler{filteredHandler: newFilteredHandler(next, OlPacketDump), writer: out}
 }

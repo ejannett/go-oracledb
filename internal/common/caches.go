@@ -40,6 +40,7 @@ package common
 
 import (
 	"container/list"
+	"maps"
 	"sync"
 	"time"
 	"weak"
@@ -422,8 +423,11 @@ type WeakRefCache[T any] struct {
 }
 
 // NewWeakRefCache creates a WeakRefCache that removes nil weak references on
-// the provided cleanup interval. It returns nil when cleanupInterval is not
-// positive.
+// the provided cleanup interval.
+// parameters:
+//   - cleanupInterval interval for automatic cleanup
+// returns:
+//.  a new WeakRefCache or nil if parameters are invalid
 func NewWeakRefCache[T any](cleanupInterval time.Duration) *WeakRefCache[T] {
 	if cleanupInterval <= 0 {
 		Odl.Error("cleanupInterval must be positive")
@@ -437,8 +441,6 @@ func NewWeakRefCache[T any](cleanupInterval time.Duration) *WeakRefCache[T] {
 	}
 }
 
-// Get returns the cached pointer for key when the weak reference still points
-// to a live value.
 func (c *WeakRefCache[T]) Get(key string) (value *T, found bool) {
 	c.cleanupIfNeeded()
 
@@ -456,8 +458,6 @@ func (c *WeakRefCache[T]) Get(key string) (value *T, found bool) {
 	return value, true
 }
 
-// Put stores value as a weak reference and returns the previous live value for
-// key, or nil when key was not present or its previous value was already gone.
 func (c *WeakRefCache[T]) Put(key string, value *T) *T {
 	c.cleanupIfNeeded()
 
@@ -476,8 +476,6 @@ func (c *WeakRefCache[T]) Put(key string, value *T) *T {
 	return previous
 }
 
-// Remove deletes a cached weak reference by key and reports whether an entry
-// was removed.
 func (c *WeakRefCache[T]) Remove(key string) bool {
 	c.cleanupIfNeeded()
 
@@ -488,24 +486,19 @@ func (c *WeakRefCache[T]) Remove(key string) bool {
 	return false
 }
 
-// Clear removes all weak references from the cache.
 func (c *WeakRefCache[T]) Clear() {
 	clear(c.entries)
 	c.nextCleanup = time.Now().Add(c.cleanupInterval)
 }
 
+// cleanupIfNeeded perform cleanup of the map if necessary. I.e cleanup interval
+// has been consumed.
 func (c *WeakRefCache[T]) cleanupIfNeeded() {
 	if time.Now().Before(c.nextCleanup) {
 		return
 	}
-	c.removeNilReferences()
+	maps.DeleteFunc(c.entries, func(k string, v weak.Pointer[T]) bool {
+		return c.entries[k].Value() == nil
+	})
 	c.nextCleanup = time.Now().Add(c.cleanupInterval)
-}
-
-func (c *WeakRefCache[T]) removeNilReferences() {
-	for key, entry := range c.entries {
-		if entry.Value() == nil {
-			delete(c.entries, key)
-		}
-	}
 }
