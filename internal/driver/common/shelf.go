@@ -145,7 +145,6 @@ func (s *Shelf[T]) GetLocalizationService() common.LocalizationService {
 	return s.localizationService
 }
 
-
 // LocalizeError localizes the provided error with the localization service
 // registered on the shelf. If no localization service is registered, the error
 // is returned unchanged.

@@ -426,8 +426,9 @@ type WeakRefCache[T any] struct {
 // the provided cleanup interval.
 // parameters:
 //   - cleanupInterval interval for automatic cleanup
+//
 // returns:
-//.  a new WeakRefCache or nil if parameters are invalid
+// .  a new WeakRefCache or nil if parameters are invalid
 func NewWeakRefCache[T any](cleanupInterval time.Duration) *WeakRefCache[T] {
 	if cleanupInterval <= 0 {
 		Odl.Error("cleanupInterval must be positive")

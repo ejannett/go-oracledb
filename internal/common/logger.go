@@ -90,8 +90,8 @@ const (
 
 // Fine logs a message with OlFine level
 // parameters:
-//  - msg message to be written
-//  - args attributes
+//   - msg message to be written
+//   - args attributes
 func (l *OracleLogger) Fine(msg string, args ...any) {
 	if !l.Enabled(context.Background(), OlFine) {
 		return
@@ -107,8 +107,8 @@ func (l *OracleLogger) Fine(msg string, args ...any) {
 
 // Finest logs a message with OlFinest level
 // parameters:
-//  - msg message to be written
-//  - args attributes
+//   - msg message to be written
+//   - args attributes
 func (l *OracleLogger) Finest(msg string, args ...any) {
 	if !l.Enabled(context.Background(), OlFinest) {
 		return
@@ -132,12 +132,14 @@ func (l *OracleLogger) PacketDump(packetBytes []byte) {
 
 // keep weak references on all tagged loggers
 var allLoggers = NewWeakRefCache[OracleLogger](time.Minute)
+
 // lock to keeo maop access safe
 var allLoggersL sync.Mutex
 
 // OdlT gets a tagged logger.
 // argument :
 //   - tag, the tag for the returned sub logger
+//
 // returns:
 //   - a previously allocated sub looger or a new one if one is not already available
 func OdlT(tag string) *OracleLogger {
@@ -173,20 +175,26 @@ type filteredHandler struct {
 
 // newFilteredHandler creates a new filteredHandler
 // arguments :
+//
 //	backend : the backend handler where to log messages
 //	levels: level white list.
+//
 // returns:
-//  a new handler
+//
+//	a new handler
 func newFilteredHandler(backend slog.Handler, levels ...slog.Level) *filteredHandler {
 	return &filteredHandler{levels: levels, backend: backend}
 }
 
 // newPacketDumpHandler creates a new packetDumpHandler
 // arguments :
+//
 //	out : the writer to write dumps to (using raw format)
 //	next: the actual handler to be used
+//
 // returns:
-//  a new handler
+//
+//	a new handler
 func newPacketDumpHandler(out io.Writer, next slog.Handler) *packetDumpHandler {
 	return &packetDumpHandler{filteredHandler: newFilteredHandler(next, OlPacketDump), writer: out}
 }
