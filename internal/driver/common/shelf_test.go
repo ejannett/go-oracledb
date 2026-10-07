@@ -157,7 +157,6 @@ func TestShelf_LocalizeError(t *testing.T) {
 	}
 }
 
-
 // 1. Register a streamer and check that the same streamer is returned
 // 2. Unregister streamer and check that nil is returned
 func TestShelf_GetStreamer(t *testing.T) {
