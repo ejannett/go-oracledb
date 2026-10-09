@@ -101,6 +101,140 @@ func TestPacketDumpHandlerFormatsPacket(t *testing.T) {
 	}
 }
 
+func TestOracleLoggerWithReturnsLoggerWithAttrs(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+	logger := &OracleLogger{
+		Logger:           *slog.New(slog.NewTextHandler(&out, nil)),
+		sensitiveEnabled: true,
+	}
+
+	child := logger.With("ID", "bench")
+	child.Info("message")
+
+	if child == logger {
+		t.Fatal("With returned original logger")
+	}
+	if !child.sensitiveEnabled {
+		t.Fatal("With did not preserve sensitive logging setting")
+	}
+	if got := out.String(); !strings.Contains(got, "msg=message") || !strings.Contains(got, "ID=bench") {
+		t.Fatalf("log output = %q, want message with ID attribute", got)
+	}
+}
+
+func TestOracleLoggerFineAndFinestLogCustomLevels(t *testing.T) {
+	t.Parallel()
+
+	recorder := &recordingSlogHandler{enabled: true}
+	logger := &OracleLogger{Logger: *slog.New(recorder)}
+
+	logger.Fine("fine message", "key", "fine")
+	logger.Finest("finest message", "key", "finest")
+
+	if got, want := len(recorder.records), 2; got != want {
+		t.Fatalf("record count = %d, want %d", got, want)
+	}
+
+	tests := []struct {
+		name    string
+		record  slog.Record
+		level   slog.Level
+		message string
+		attr    string
+	}{
+		{
+			name:    "fine",
+			record:  recorder.records[0],
+			level:   OlFine,
+			message: "fine message",
+			attr:    "fine",
+		},
+		{
+			name:    "finest",
+			record:  recorder.records[1],
+			level:   OlFinest,
+			message: "finest message",
+			attr:    "finest",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.record.Level != test.level {
+				t.Fatalf("level = %v, want %v", test.record.Level, test.level)
+			}
+			if test.record.Message != test.message {
+				t.Fatalf("message = %q, want %q", test.record.Message, test.message)
+			}
+			if test.record.PC == 0 {
+				t.Fatal("record PC is not set")
+			}
+			assertRecordAttr(t, test.record, "key", test.attr)
+		})
+	}
+}
+
+func TestOdlTReturnsTaggedLogger(t *testing.T) {
+	var out bytes.Buffer
+	original := Odl
+	Odl = OracleLogger{
+		Logger:           *slog.New(slog.NewTextHandler(&out, nil)),
+		sensitiveEnabled: true,
+	}
+	t.Cleanup(func() {
+		Odl = original
+	})
+
+	if got := OdlT(""); got != &Odl {
+		t.Fatal("OdlT with empty tag did not return global logger")
+	}
+
+	logger := OdlT("session-1")
+	if logger == &Odl {
+		t.Fatal("OdlT with tag returned global logger")
+	}
+	if !logger.sensitiveEnabled {
+		t.Fatal("OdlT did not preserve sensitive logging setting")
+	}
+
+	logger.Info("message")
+	if got := out.String(); !strings.Contains(got, "msg=message") ||
+		!strings.Contains(got, "ID=session-1") {
+		t.Fatalf("log output = %q, want message with ID attribute", got)
+	}
+}
+
+func TestParseOracleLogLevel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value string
+		want  slog.Level
+	}{
+		{name: "finest", value: "FINEST", want: OlFinest},
+		{name: "finest lower case", value: "finest", want: OlFinest},
+		{name: "fine", value: "FINE", want: OlFine},
+		{name: "fine lower case", value: "fine", want: OlFine},
+		{name: "debug", value: "DEBUG", want: slog.LevelDebug},
+		{name: "info", value: "INFO", want: slog.LevelInfo},
+		{name: "warn", value: "WARN", want: slog.LevelWarn},
+		{name: "error", value: "ERROR", want: slog.LevelError},
+		{name: "bare numeric defaults to info", value: "-12", want: slog.LevelInfo},
+		{name: "invalid defaults to info", value: "invalid", want: slog.LevelInfo},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := parseOracleLogLevel(test.value); got != test.want {
+				t.Fatalf("parseOracleLogLevel(%q) = %v, want %v", test.value, got, test.want)
+			}
+		})
+	}
+}
+
 func assertRecordAttr(t *testing.T, record slog.Record, key string, want any) {
 	t.Helper()
 

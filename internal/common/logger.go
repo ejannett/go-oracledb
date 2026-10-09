@@ -72,7 +72,7 @@ type OracleLogger struct {
 func (l *OracleLogger) With(args ...any) *OracleLogger {
 	return &OracleLogger{
 		Logger:           *l.Logger.With(args...),
-		sensitiveEnabled: false,
+		sensitiveEnabled: l.sensitiveEnabled,
 	}
 }
 
