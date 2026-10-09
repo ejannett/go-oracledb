@@ -44,6 +44,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/oracle/go-oracledb/v26/internal/common"
 	oracleErrors "github.com/oracle/go-oracledb/v26/oracle/errors"
@@ -60,6 +61,11 @@ func TestDriver_DRCPSimpleConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open connection : %v", err)
 	}
+	_, err = db.Query("SELECT 1 FROM DUAL")
+	if err != nil {
+		return
+	}
+
 	err = db.Close()
 	if err != nil {
 		t.Fatalf("failed to open connection : %v", err)
@@ -82,14 +88,27 @@ func TestDriver_DRCP_SelectDual(t *testing.T) {
 
 	config.ConnectionProperties.ServerType = common.ServerTypePooled
 	config.ConnectionProperties.Drcp.Class = "TestDriver_DRCP_SelectDual"
+	//config.ConnectionProperties.Drcp.Tag = "MANU"
 	//config.ConnectionProperties.Drcp.Boundary = "STATEMENT"
 
 	//config.ConnectDescriptor = TestingConfig.GetConnectionDSN()
 	config.ConnectDescriptor = TestingConfig.Credentials.Username + "/" + TestingConfig.Credentials.Password + "@" + TestingConfig.Database.Host + ":" + strconv.Itoa(int(TestingConfig.Database.Port)) + "/" + TestingConfig.Database.ServiceName
 	connector, err := NewOracleConnector(config)
 	if err != nil {
-		t.Fatalf("create connection connector: %v", err)
+		t.Fatalf("create connector failed: %v", err)
 	}
+
+	// conf to be used for request that valid current attachement
+	// We can use the same as it confuses DRCP stats
+	privConfig := config.Clone()
+	privConfig.ConnectionProperties.ServerType = common.ServerTypeDedicated
+	privConfig.ConnectionProperties.Drcp.Class = ""
+
+	privConnector, err := NewOracleConnector(privConfig)
+	if err != nil {
+		t.Fatalf("create priv connector failed: %v", err)
+	}
+
 	db := sql.OpenDB(connector)
 	defer func() {
 		if err := db.Close(); err != nil {
@@ -101,23 +120,28 @@ func TestDriver_DRCP_SelectDual(t *testing.T) {
 		t.Fatalf("ping connection failed: %v", err)
 	}
 
+	privdb := sql.OpenDB(privConnector)
+	defer func() {
+		if err := privdb.Close(); err != nil {
+			t.Errorf("close privdb: %v", err)
+		}
+	}()
+
 	cnx, err := db.Conn(context.Background())
 	if err != nil {
 		t.Fatalf("get dedicated sql connection failed: %v", err)
 	}
 	defer cnx.Close()
+
 	oracleConnection, err := NewConnectionWrapper(cnx)
 	if err != nil {
 		t.Fatalf("create connection wrapper failed: %v", err)
 	}
 
-	// TODO : add a test for error thrown when implicit attach is on
-	err = oracleConnection.AttachToDrcpPool(context.Background())
-	if err != nil {
-		t.Fatalf("Can't attach to DRCP: %v", err)
+	// here we are already attached as going out of th pool attaches us.
+	if !isDrcpAttached(t, privdb, config.ConnectionProperties.Drcp.Class) {
+		t.Fatalf("Should be attached now")
 	}
-
-	isDrcpAttached(t, db, config.ConnectionProperties.Drcp.Class)
 
 	rows, err := cnx.QueryContext(context.Background(), "SELECT 1 FROM DUAL")
 	if err != nil {
@@ -133,60 +157,49 @@ func TestDriver_DRCP_SelectDual(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Can't detach from DRCP: %v", err)
 	}
-
+	// Have to wait a little bit , be sure that remote view is updated
+	time.Sleep(1 * time.Second)
+	if isDrcpAttached(t, privdb, config.ConnectionProperties.Drcp.Class) {
+		t.Fatalf("Should be detached now")
+	}
 }
 
-func isDrcpAttached(t *testing.T, db *sql.DB, expectedClass string) {
+func isDrcpAttached(t *testing.T, db *sql.DB, expectedClass string) bool {
 	t.Helper()
 
-	var statsClass string
-	var numRequests int64
+	var attachedClass sql.NullString
+	var purity sql.NullString
+	var tag sql.NullString
+	var connection_status sql.NullString
+
 	rows := db.QueryRowContext(
-		context.Background(),
-		`SELECT cclass_name, num_requests
-		   FROM V$CPOOL_CC_STATS
-		  WHERE UPPER(cclass_name) LIKE '%.' || UPPER(:1)`,
-		expectedClass,
-	) //
-
-	if rows.Err() != nil {
-		if rows.Err().(oracleErrors.SQLError).ErrorCode() == string(oracleErrors.TableOrViewNotFound) {
-			// requires "Grant SELECT ON SYS.V_$CPOOL_CC_STATS"
-			t.Skipf("cannot verify DRCP attachment: %v", rows.Err())
-		}
-		t.Fatalf("query V$CPOOL_CC_STATS for DRCP class %q failed: %v", expectedClass, rows.Err())
-	}
-	rows.Scan(&statsClass, &numRequests)
-	if numRequests <= 0 {
-		t.Fatalf("DRCP class %q has no requests in V$CPOOL_CC_STATS: cclass_name=%q num_requests=%d",
-			expectedClass, statsClass, numRequests)
-	}
-
-	t.Logf("DRCP class %q attached, num reques %d", statsClass, numRequests)
-
-	var attachedClass string
-	var purity string
-	var tag string
-	var connection_status string
-
-	rows = db.QueryRowContext(
 		context.Background(),
 		`SELECT cclass_name, purity, tag, connection_status
 		   FROM v$cpool_conn_info
-		  WHERE UPPER(cclass_name) LIKE '%.' || UPPER(:1)
-		    AND ROWNUM = 1`,
+		  WHERE UPPER(cclass_name) LIKE '%.' || UPPER(:1)`,
 		expectedClass,
 	)
 	if rows.Err() != nil {
 		if rows.Err().(oracleErrors.SQLError).ErrorCode() == string(oracleErrors.TableOrViewNotFound) {
 			// requires "Grant SELECT ON SYS.V_$CPOOL_CONN_INFO"
-			t.Skipf("cannot verify DRCP attachment: %v", rows.Err())
+			t.Skipf("cannot verify DRCP attachment (missing privileges?): %v", rows.Err())
+		}
+		if rows.Err() == sql.ErrNoRows {
+			t.Logf("DRCP connection class %q was not found in v$cpool_conn_info", expectedClass)
+			return false
 		}
 		t.Fatalf("query v$cpool_conn_info for attached DRCP class %q failed: %v", expectedClass, rows.Err())
 	}
-	rows.Scan(&attachedClass, &purity, &tag, &connection_status)
-	if attachedClass == "" || purity == "" {
-		t.Fatalf("DRCP connection class %q was not found in v$cpool_conn_info", expectedClass)
+
+	err := rows.Scan(&attachedClass, &purity, &tag, &connection_status)
+	if err != nil {
+		t.Fatalf("scan v$cpool_conn_info for attached DRCP class failed: %v",err)
 	}
-	t.Logf("DRCP conn info class %q attached, purity %q, tag %q, status %q", attachedClass, purity, tag, connection_status)
+
+	if connection_status.String != "ACTIVE" {
+		return false
+	}
+	t.Logf("DRCP conn info class %q attached, purity %q, tag %q, status %q",
+		attachedClass.String, purity.String, tag.String, connection_status.String)
+	return true
 }

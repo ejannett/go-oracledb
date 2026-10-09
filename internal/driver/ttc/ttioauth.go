@@ -138,8 +138,10 @@ const (
 	authNlsLxcTtznfm    = "AUTH_NLS_LXCTTZNFM"
 	authNlsLxcStznfm    = "AUTH_NLS_LXCSTZNFM"
 
-	AuthKpplConnClass = "AUTH_KPPL_CONN_CLASS"
-	AuthKpplPurity    = "AUTH_KPPL_PURITY"
+	AuthKpplConnClass      = "AUTH_KPPL_CONN_CLASS"
+	AuthKpplPurity         = "AUTH_KPPL_PURITY"
+	AuthKpplTag            = "AUTH_KPPL_TAG";
+	AuthKpplIsMultiPropTag = "AUTH_KPPL_IS_MULTIPROP_TAG";
 
 	// Additional SESSION_* NLS keys used by server piggybacks (OCSSYNC)
 	sessionNlsLxcCharset   = "SESSION_NLS_LXCCHARSET"
@@ -183,6 +185,8 @@ type oAuth struct {
 	_hasO7LMRSupport        bool
 	connectionClass         driverCommon.B1Array
 	connectionPurity        driverCommon.B1Array
+	connectionTagName       driverCommon.B1Array
+	useDRCPMultipletag      bool
 }
 
 // newOAuth creates a new Oracle Authentication (OAUTH) TTC message with the legacy
@@ -512,10 +516,17 @@ func (o *oAuth) setVSessionKeyValsForOAUTH() {
 
 var _drcpClassNameKey = driverCommon.StringToB1Array(AuthKpplConnClass)
 var _drcpPurityKey = driverCommon.StringToB1Array(AuthKpplPurity)
-
+var _drcpTagName = driverCommon.StringToB1Array(AuthKpplTag)
+var _drcpMultiPropTag = driverCommon.StringToB1Array(AuthKpplIsMultiPropTag)
 func (o *oAuth) setDRCPKeyValsForOAUTH() {
 	o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpClassNameKey, Value: o.connectionClass})
 	o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpPurityKey, Value: o.connectionPurity})
+	if len(o.connectionTagName) > 0 {
+		o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpTagName, Value: o.connectionTagName})
+		if o.useDRCPMultipletag {
+			o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpMultiPropTag, Value: driverCommon.StringToB1Array("TRUE")})
+		}
+	}
 }
 
 var _authOraEditionKey = driverCommon.StringToB1Array(authOraEdition)
@@ -693,6 +704,15 @@ func (o *oAuth) setDrcpConnectionClass(class driverCommon.B1Array) {
 // setDrcpPurity sets the DRCP connecton class of this oauth
 func (o *oAuth) setDrcpPurity(purity driverCommon.B1Array) {
 	o.connectionPurity = purity
+}
+
+// setDrcpTagProps sets the DRCP connecton tag information
+// parameters:
+//   - tag the connection tag
+//   - useMultipleTagdo use multiple tag ?
+func (o *oAuth) setDrcpTagProps(tag string, useMultipleTag bool) {
+	o.connectionTagName = driverCommon.StringToB1Array(tag)
+	o.useDRCPMultipletag = useMultipleTag
 }
 
 // ---- oauth Function Reply (TTIRPA) Message ----

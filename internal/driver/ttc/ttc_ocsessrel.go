@@ -49,9 +49,15 @@ import (
 // ttiOCSessrel server's "session-release values" message for a pooled-session release.
 type ttiOCSessrel struct {
 	header      driverCommon.Marshallable
-	sessrlstag  string
+	sessrlstag  string // not used as we use OCSessrel  as ONWAYFN
 	sessrlsmode driverCommon.UB4
+	tag string
 }
+
+const (
+	sessRlsRetag             = 0x00000004;
+	sessRlsMultiPropertyTag = 0x00000008;
+)
 
 // newttiOCSessrel allocates a new receiver for OCSSESSREL payloads.
 // The returned value implements common.Message and is intended to be populated
@@ -83,6 +89,23 @@ func (spf *ttiOCSessrel) GetFuncCode() driverCommon.FunctionType {
 	return ocsessrls
 }
 
+func (spf *ttiOCSessrel) SetTag(tag string)  {
+	spf.tag = tag
+	if len(spf.tag) > 0 {
+		spf.sessrlsmode |= sessRlsRetag
+	} else {
+		spf.sessrlsmode &^= sessRlsRetag
+	}
+}
+
+func (spf *ttiOCSessrel) SetMultiPropertyTagMode(toggle bool)  {
+	if toggle {
+		spf.sessrlsmode |= sessRlsMultiPropertyTag
+	} else {
+		spf.sessrlsmode &^= sessRlsMultiPropertyTag
+	}
+}
+
 // MarshalTo writes a OCSSESSREL payload from the wire.
 func (spf *ttiOCSessrel) MarshalTo(ctx context.Context, engine driverCommon.Marshaller) error {
 	err := spf.header.MarshalTo(ctx, engine)
@@ -90,21 +113,30 @@ func (spf *ttiOCSessrel) MarshalTo(ctx context.Context, engine driverCommon.Mars
 		common.Odl.Warn("Failed to marshall OCSSESSREL header", "error", err)
 		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
 	}
-
-	err = engine.MarshalSB4(ctx, 0)
-	if err != nil {
-		common.Odl.Warn("Failed to marshall OCSSESSREL", "error", err)
-		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	tagLen := len(spf.tag)
+	var B1Tag driverCommon.B1Array
+	if len(spf.tag) > 0 {
+		err := engine.MarshalPTR(ctx)
+		if err != nil {
+			common.Odl.Warn("Failed to marshall OCSSESSREL tag", "error", err)
+			return err
+		}
+		B1Tag = driverCommon.StringToB1Array(spf.tag)
+		err = engine.MarshalSB4(ctx, driverCommon.SB4(tagLen))
+		if err != nil {
+			return err
+		}
+	} else {
+		engine.MarshalSB4(ctx,0)
+		engine.MarshalNullPTR(ctx)
 	}
-	err = engine.MarshalNullPTR(ctx)
-	if err != nil {
-		common.Odl.Warn("Failed to marshall OCSSESSREL", "error", err)
-		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
-	}
-	err = engine.MarshalUB4(ctx, spf.sessrlsmode)
-	if err != nil {
-		common.Odl.Warn("Failed to marshall OCSSESSREL", "error", err)
-		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
+	engine.MarshalUB4(ctx, spf.sessrlsmode);
+	if len(B1Tag) > 0 {
+		err := engine.MarshalB1Array(ctx, B1Tag)
+		//err := engine.MarshalCLR(ctx, B1Tag,0,len(B1Tag))
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

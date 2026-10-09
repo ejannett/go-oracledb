@@ -40,6 +40,8 @@ package ttc
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -278,15 +280,25 @@ func (pa *passwordAuthenticator) _doOAuth(ctx context.Context) error {
 	oauthMsg.(*oAuth).setBUseO5Logon(sessionProperties.ContainsKey(authVFRData))
 
 	if shelf.GetDriverConfig().ConnectionProperties.ServerType == common.ServerTypePooled {
-		if shelf.GetDriverConfig().ConnectionProperties.Drcp.Class != "" {
-			oauthMsg.(*oAuth).setDrcpConnectionClass(
-				driverCommon.B1Array(shelf.GetDriverConfig().ConnectionProperties.Drcp.Class))
-			if clientProperties.ContainsKey(AuthKpplPurity) {
-				oauthMsg.(*oAuth).setDrcpPurity(
-					driverCommon.B1Array(shelf.GetDriverConfig().ConnectionProperties.Drcp.Purity))
-			}
-		} else {
-			// TODO : what's default class value ?
+		drcpClassName := shelf.GetDriverConfig().ConnectionProperties.Drcp.Class
+		if len(drcpClassName) == 0 {
+			h := sha256.New()
+			_,_ = h.Write([]byte(shelf.GetDriverConfig().ConnectDescriptor))
+
+			drcpClassName = fmt.Sprintf("%s_%x",
+				shelf.GetDriverConfig().Credentials.User, h.Sum(nil))
+			common.Odl.Info(fmt.Sprintf("No DRCP class name specified, using [%s]",
+				drcpClassName))
+		}
+		oauthMsg.(*oAuth).setDrcpConnectionClass(
+			driverCommon.B1Array(drcpClassName))
+		if clientProperties.ContainsKey(AuthKpplPurity) {
+			oauthMsg.(*oAuth).setDrcpPurity(
+				driverCommon.B1Array(shelf.GetDriverConfig().ConnectionProperties.Drcp.Purity))
+		}
+		if shelf.GetDriverConfig().ConnectionProperties.Drcp.Tag != "" {
+			oauthMsg.(*oAuth).setDrcpTagProps(shelf.GetDriverConfig().ConnectionProperties.Drcp.Tag,
+				shelf.GetDriverConfig().ConnectionProperties.Drcp.UseMultipleTag)
 		}
 	}
 	oauthMsg.(*oAuth).setLogonMode(pa._logonMode)

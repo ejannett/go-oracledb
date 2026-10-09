@@ -74,6 +74,7 @@ const (
 //
 // Returns: true if the connection is valid otherwise false
 func (c *connection) IsValid() bool {
+
 	common.Odl.Debug("IsValid() called", "cnx", (*c).String())
 	// Check if inband notification has been received.
 	c._isValid = c._isValid && !c.ns.CheckInbandNotification()

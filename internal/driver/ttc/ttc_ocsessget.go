@@ -57,6 +57,8 @@ type ttiOCSessget struct {
 	returnTag     string           // Return Connection Tags
 }
 
+const multiPropertyTagMatchAny = 0x00000001
+
 // newttiOCSessget allocates a new receiver for OCSSESSGRET payloads.
 // The returned value implements common.Message and is intended to be populated
 // via UnMarshalFrom by the MessageStreamer.
@@ -71,6 +73,15 @@ func newttiOCSessget() driverCommon.Message[driverCommon.MessageType] {
 func newttiOCSessget18() driverCommon.Message[driverCommon.MessageType] {
 	return &ttiOCSessget{
 		header: &ttiFunHeader18{ttiFunHeader: &ttiFunHeader{_funcType: ocsessget}},
+	}
+}
+
+// SetMultiTagMatchAny enable
+func (fun *ttiOCSessget) SetMultiTagMatchAny(on bool) {
+	if on {
+		fun.sessigetFlags |= multiPropertyTagMatchAny
+	} else {
+		fun.sessigetFlags &^= multiPropertyTagMatchAny
 	}
 }
 
@@ -154,6 +165,9 @@ func (p *ttiOCSessgetRpa) GetMsgCode() driverCommon.MessageType {
 //   - ctx : context
 //   - engine : marshalling engine
 func (rpa *ttiOCSessgetRpa) UnMarshalFrom(ctx context.Context, engine driverCommon.Marshaller) error {
+
+	common.Odl.Debug("ttiOCSessgetRpa unmarshalling from ttiFun")
+
 	var err error
 	rpa.sessgetOkvn, err = engine.UnmarshalUB2(ctx) // Read the key value length
 	if err != nil {
@@ -173,6 +187,12 @@ func (rpa *ttiOCSessgetRpa) UnMarshalFrom(ctx context.Context, engine driverComm
 			return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
 		}
 	}
+
+	// 0x1 — TAG_MISMATCH
+	// 0x2 — PURITY_NEW
+	// 0x4 — SESSION_CHANGED
+	// 0x8 — STMTCACHE_DESTROY
+	// TODO deal with TAG_MISMATCH as user may want to know
 	rpa.sessgetFlags, err = engine.UnmarshalUB4(ctx)
 	if err != nil {
 		common.Odl.Warn("Failed to unmarshall OCSSESSGET RPA flags", "error", err)
@@ -184,10 +204,12 @@ func (rpa *ttiOCSessgetRpa) UnMarshalFrom(ctx context.Context, engine driverComm
 		common.Odl.Warn("Failed to unmarshall OCSSESSGET RPA flags", "error", err)
 		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
 	}
+
 	rpa.returnTag, err = engine.UnmarshalB1Array(ctx, int(returnTagLength)) // Read the ReturnTag value
 	if err != nil {
 		common.Odl.Warn("Failed to unmarshall OCSSESSGET RPA flags", "error", err)
 		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
 	}
+	common.Odl.Debug("ttiOCSessgetRpa returned","returnTag",rpa.returnTag)
 	return nil
 }

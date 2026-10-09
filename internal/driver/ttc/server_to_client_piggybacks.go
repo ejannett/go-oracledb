@@ -109,7 +109,7 @@ func (sessionUpdater serverToClientPiggybackUpdater) updateSessionRetProperties(
 	props := driverCommon.NewProperties[string]()
 	props.SetProperty(authSessionId, ttiSPFOCSessret.getSessretidx())
 	props.SetProperty(authSessionSerial, ttiSPFOCSessret.getSessretser())
-	common.Odl.Debug("session updated", authSessionId, ttiSPFOCSessret.getSessretidx(), authSessionSerial, ttiSPFOCSessret.getSessretser())
+	common.Odl.Debug("ocsessret / session updated", authSessionId, ttiSPFOCSessret.getSessretidx(), authSessionSerial, ttiSPFOCSessret.getSessretser())
 	sessionUpdater.sessionCtx.UpdateSessionProperties(props)
 
 	return false, nil

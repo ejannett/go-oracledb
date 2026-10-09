@@ -166,9 +166,11 @@ type OracleConnectionProperties struct {
 }
 
 type DatabaseResidentConnectionPooling struct {
-	Class    string `ns_name:"pool_connection_class" help:"sets the DRCP connection class"`
+	Class    string `ns_name:"pool_connection_class" help:"sets the DRCP connection class, when not specified a name is generated"`
 	Purity   string `ns_name:"pool_purity" help:"sets the DRCP purity" validator:"validateDRCPPurity" `
 	Boundary string `ns_name:"pool_boundary" help:"sets the DRCP boundary" validator:"validateDRCPBoundary" `
+	Tag      string `help:"sets the tag for pooled DRCP connection"`
+	UseMultipleTag bool `default:"false"  help:"Does the  pooled DRCP connection use multiple tags"`
 }
 
 func (config DatabaseResidentConnectionPooling) String() string {

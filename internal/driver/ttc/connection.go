@@ -170,7 +170,12 @@ func (c *connection) ExecContext(ctx context.Context, query string, args []drive
 	if err != nil {
 		return nil, c.shelf.LocalizeError(err)
 	}
-	defer stmt.Close()
+	defer func() {
+		err := stmt.Close()
+		if err != nil {
+			common.Odl.Warn("Connection.ExecContext: failed to close statement", "error", err)
+		}
+	}()
 	result, execErr := stmt.ExecContext(ctx, args)
 	return result, c.shelf.LocalizeError(execErr)
 }
@@ -182,7 +187,12 @@ func (c *connection) QueryContext(ctx context.Context, query string, args []driv
 	if err != nil {
 		return nil, c.shelf.LocalizeError(err)
 	}
-	defer stmt.Close()
+	defer func() {
+		err := stmt.Close()
+		if err != nil {
+			common.Odl.Warn("Connection.QueryContext: failed to close statement", "error", err)
+		}
+	}()
 	result, err := stmt.QueryContext(ctx, args)
 	return result, c.shelf.LocalizeError(err)
 }
@@ -304,7 +314,12 @@ func (c *connection) _registerServerTimezoneOffset(ctx context.Context) error {
 	if err != nil {
 		return c.shelf.LocalizeError(common.NewOracleError(oracleErrors.ServerTimeZoneError, err, "query"))
 	}
-	defer rows.Close()
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			common.Odl.Warn("_registerServerTimezoneOffset: failed to close rows", "error", err)
+		}
+	}()
 	values := make([]driver.Value, 1)
 	var serverTimeZone string
 	values[0] = &serverTimeZone
@@ -357,7 +372,7 @@ func parseTimeZone(timezone string) (int, int, error) {
 }
 
 func (c *connection) AttachToResidentPool(ctx context.Context) error {
-	common.Odl.Info("attaching session ")
+	common.Odl.Debug("attaching to DRCP")
 	if c._drcpState == _drcpDisabled {
 		common.Odl.Debug("Connection.attachToDRCPool called but drcp not enabled")
 		return common.NewOracleError(oracleErrors.DRCPNotEnabled, nil)
@@ -381,6 +396,10 @@ func (c *connection) AttachToResidentPool(ctx context.Context) error {
 
 	getMsg := function.(*ttiOCSessget)
 
+	if c.shelf.GetDriverConfig().ConnectionProperties.Drcp.UseMultipleTag {
+		getMsg.SetMultiTagMatchAny(true)
+	}
+
 	err = c.shelf.GetMessageStreamer().Push(ctx, getMsg)
 	if err != nil {
 		common.Odl.Debug("Connection.attachToDRCPool failed to send attachemnt request")
@@ -392,9 +411,13 @@ func (c *connection) AttachToResidentPool(ctx context.Context) error {
 		return common.NewOracleError(oracleErrors.DRCPAttachFailed, err)
 	}
 
+	common.Odl.Debug("request session message sent, pulling for response")
+
 	streamer := c.shelf.GetMessageStreamer().(MessageStreamerInterface)
-	streamer.RegisterPreUnmarshallCallback(TTIRPA, func(mh *messageHeader) (driverCommon.Message[driverCommon.MessageType], error) {
-		return newTtiOCSessgetRpa(), nil
+
+	streamer.RegisterPreUnmarshallCallback(TTIRPA,
+		func(mh *messageHeader) (driverCommon.Message[driverCommon.MessageType], error) {
+			return newTtiOCSessgetRpa(), nil
 	})
 
 	for {
@@ -447,7 +470,7 @@ func (c *connection) AttachToResidentPool(ctx context.Context) error {
 
 }
 func (c *connection) DetachFromResidentPool(ctx context.Context) error {
-	common.Odl.Info("releasing session")
+	common.Odl.Info("releasing from DRCP")
 	if c._drcpState == _drcpDisabled {
 		common.Odl.Debug("Connection.DetachFromResidentPool called but DRCP not enabled")
 		return common.NewOracleError(oracleErrors.DRCPNotEnabled, nil)
@@ -468,13 +491,17 @@ func (c *connection) DetachFromResidentPool(ctx context.Context) error {
 
 	relMsg := function.(*ttiOCSessrel)
 
+	relMsg.SetTag(c.shelf.GetDriverConfig().ConnectionProperties.Drcp.Tag)
+	relMsg.SetMultiPropertyTagMode(c.shelf.GetDriverConfig().ConnectionProperties.Drcp.UseMultipleTag)
+
 	err = c.shelf.GetMessageStreamer().Push(ctx, relMsg)
 	if err != nil {
-		// TODO : add logging
+		common.Odl.Debug("Connection.DetachFromResidentPool failed to send detach request")
 		return err
 	}
 	err = c.shelf.GetMessageStreamer().Flush(ctx)
 	if err != nil {
+		common.Odl.Debug("Connection.DetachFromResidentPool failed to flush detach request")
 		return err
 	}
 
@@ -487,10 +514,10 @@ func (c *connection) DetachFromResidentPool(ctx context.Context) error {
 	//	}
 	//
 	//	switch rMsg.GetMsgCode() {
-	//	case TTISPF:
-	//		common.Odl.Debug("Connection.attachToDRCPool: TTISPF received")
-	//	case TTIRPA:
-	//		common.Odl.Debug("Connection.attachToDRCPool: TTIRPA received")
+	//	//case TTISPF:
+	//	//	common.Odl.Debug("Connection.attachToDRCPool: TTISPF received")
+	//	//case TTIRPA:
+	//	//	common.Odl.Debug("Connection.attachToDRCPool: TTIRPA received")
 	//	case TTIOER:
 	//		common.Odl.Debug("Connection.attachToDRCPool: TTIOER received")
 	//		// OER or STA mark the end of the processing
@@ -501,7 +528,7 @@ func (c *connection) DetachFromResidentPool(ctx context.Context) error {
 	//		return nil
 	//	}
 	//}
-	common.Odl.Debug("release session sent")
+	common.Odl.Debug("DRCP release done")
 	c._drcpConnectionState = _drcpConnectionStateDetached
 
 	return nil

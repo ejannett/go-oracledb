@@ -60,6 +60,13 @@ type ttiSPFOCSessret struct {
 	sessretser driverCommon.UB2
 }
 
+const (
+	sessgetTagMismatch= 0x00000001;
+	sessgetPurityNew= 0x00000002;
+	sessgetSessionChanged= 0x00000004;
+	sessgetStmtCacheDestroy= 0x00000008;
+)
+
 func (spf *ttiSPFOCSessret) getSessretidx() driverCommon.UB4 {
 	return spf.sessretidx
 }
@@ -82,7 +89,7 @@ func (spf *ttiSPFOCSessret) GetMsgCode() driverCommon.MessageType {
 	return TTISPF
 }
 
-// getFuncCode returns the piggyback function code associated with this message.
+// GetFuncCode returns the piggyback function code associated with this message.
 // For OCSSESSRET it is ocsessret (see ttimsgconst.go).
 func (spf *ttiSPFOCSessret) GetFuncCode() driverCommon.FunctionType {
 	return ocsessret
@@ -91,6 +98,7 @@ func (spf *ttiSPFOCSessret) GetFuncCode() driverCommon.FunctionType {
 // UnMarshalFrom reads a TTISPF/OCSSESSRET payload from the wire.
 // Expected layout (as observed from network traces):
 func (spf *ttiSPFOCSessret) UnMarshalFrom(ctx context.Context, engine driverCommon.Marshaller) error {
+	common.Odl.Debug("Unmarshal ttiSPFOCSessret")
 	// Reserved/length (ignored)
 	_, err := engine.UnmarshalUB2(ctx)
 	if err != nil {
@@ -130,16 +138,25 @@ func (spf *ttiSPFOCSessret) UnMarshalFrom(ctx context.Context, engine driverComm
 		common.Odl.Warn("Error unmarshalling UB4 for Server-To-Client Piggyback ret flags", "error", err)
 		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "session ret")
 	}
+
+	if (spf.sessretflags & sessgetTagMismatch) > 0 {
+		// the requested tag was not found in server pool
+		common.Odl.Info("tag mismatch received", "error", err)
+	}
+
 	spf.sessretidx, err = engine.UnmarshalUB4(ctx)
 	if err != nil {
 		common.Odl.Warn("Error unmarshalling UB4 for Server-To-Client Piggyback session ID", "error", err)
 		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "session ret")
 	}
+	common.Odl.Debug("ttiSPFOCSessret.Unmarshal", "sessionID", spf.sessretidx)
+
 	spf.sessretser, err = engine.UnmarshalUB2(ctx)
 	if err != nil {
 		common.Odl.Warn("Error unmarshalling UB2 for Server-To-Client Piggyback session serial", "error", err)
 		return common.NewOracleError(oracleErrors.FailUnmarshal, err, "session ret")
 	}
+	common.Odl.Debug("ttiSPFOCSessret.Unmarshal", "sessionSerial", spf.sessretser)
 
 	return nil
 }
