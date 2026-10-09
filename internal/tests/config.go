@@ -244,7 +244,9 @@ func (t *TestConfig) GetConnectionStringWithProperties(properties map[string]str
 		}
 		resC.WriteString(")")
 	}
-
+	if t.Database.ServerType != "" {
+		resC.WriteString(fmt.Sprintf("(SERVER=%s)", t.Database.ServerType))
+	}
 	resC.WriteString(")")
 
 	if len(t.Credentials.LogonMode) > 0 {

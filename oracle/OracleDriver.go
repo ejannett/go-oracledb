@@ -234,13 +234,7 @@ func (drv *Driver) openConnector(dsn string) (driver.Connector, error) {
 	// TODO : cleanup handle of serverType
 	var parsed *naming.ParsedConfig
 	var err error
-	if confToUse.ConnectionProperties.ServerType != "" {
-		// server type is not treated as query parameter. otherwise it will be ignored
-		parsed, err = naming.ParseDSNString(fmt.Sprintf("%s:%s?%s", connectDescriptor,
-			confToUse.ConnectionProperties.ServerType, confToUse.ToNSConnectionParameters()))
-	} else {
-		parsed, err = naming.ParseDSNString(fmt.Sprintf("%s?%s", connectDescriptor, confToUse.ToNSConnectionParameters()))
-	}
+	parsed, err = naming.ParseDSNString(fmt.Sprintf("%s?%s", connectDescriptor, confToUse.ToNSConnectionParameters()))
 	if err != nil {
 		common.Odl.Debug("Failed  to parse DNS", "err", err)
 		return nil, err

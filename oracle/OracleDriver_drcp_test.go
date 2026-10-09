@@ -41,8 +41,6 @@ package oracle
 import (
 	"context"
 	"database/sql"
-	"fmt"
-	"strconv"
 	"testing"
 	"time"
 
@@ -50,49 +48,34 @@ import (
 	oracleErrors "github.com/oracle/go-oracledb/v26/oracle/errors"
 )
 
-// TestDriver_SimpleConnection executes a simple connection.
-func TestDriver_DRCPSimpleConnection(t *testing.T) {
+
+// TestDriver_DRCP_Basic executes a trivial SELECT to validate DRCP query flow.
+// No tag used
+// No boundaries
+func TestDriver_DRCP_Basic(t *testing.T) {
 	t.Parallel()
 	if TestingConfig == nil {
 		t.Skip("No configuration available")
 	}
-	fmt.Printf("connecting to %q\n", TestingConfig.GetConnectionString())
-	db, err := openTestDBWithConfig(TestingConfig)
-	if err != nil {
-		t.Fatalf("failed to open connection : %v", err)
-	}
-	_, err = db.Query("SELECT 1 FROM DUAL")
-	if err != nil {
-		return
-	}
 
-	err = db.Close()
-	if err != nil {
-		t.Fatalf("failed to open connection : %v", err)
-	}
-}
 
-// TestDriver_DRCP_SelectDual executes a trivial SELECT to validate DRCP query flow.
-func TestDriver_DRCP_SelectDual(t *testing.T) {
-	t.Parallel()
-	if TestingConfig == nil {
-		t.Skip("No configuration available")
-	}
+	tConf := TestingConfig.Clone()
+	tConf.Database.ServerType = common.ServerTypePooled
 
 	config := NewOracleDriverConfig()
 
-	config.Credentials.LogonMode = TestingConfig.Credentials.LogonMode
+	config.Credentials.LogonMode = tConf.Credentials.LogonMode
 
-	//config.Credentials.User = TestingConfig.Credentials.Username
-	//config.Credentials.Password = TestingConfig.Credentials.Password
+	//config.Credentials.User = tConf.Credentials.Username
+	//config.Credentials.Password = tConf.Credentials.Password
 
 	config.ConnectionProperties.ServerType = common.ServerTypePooled
-	config.ConnectionProperties.Drcp.Class = "TestDriver_DRCP_SelectDual"
+	config.ConnectionProperties.Drcp.Class = "TestDriver_DRCP_Basic"
 	//config.ConnectionProperties.Drcp.Tag = "MANU"
 	//config.ConnectionProperties.Drcp.Boundary = "STATEMENT"
 
-	//config.ConnectDescriptor = TestingConfig.GetConnectionDSN()
-	config.ConnectDescriptor = TestingConfig.Credentials.Username + "/" + TestingConfig.Credentials.Password + "@" + TestingConfig.Database.Host + ":" + strconv.Itoa(int(TestingConfig.Database.Port)) + "/" + TestingConfig.Database.ServiceName
+	config.ConnectDescriptor = tConf.GetConnectionDSN()
+	//config.ConnectDescriptor = tConf.Credentials.Username + "/" + tConf.Credentials.Password + "@" + tConf.Database.Host + ":" + strconv.Itoa(int(tConf.Database.Port)) + "/" + tConf.Database.ServiceName
 	connector, err := NewOracleConnector(config)
 	if err != nil {
 		t.Fatalf("create connector failed: %v", err)
