@@ -69,6 +69,10 @@ func (h *recordingSlogHandler) WithGroup(string) slog.Handler {
 	return h
 }
 
+
+// TestPacketDumpHandlerFormatsPacket verifies that packet dump records are
+// forwarded to the wrapped handler while their byte payload is formatted as a
+// hex and ASCII dump in the configured writer.
 func TestPacketDumpHandlerFormatsPacket(t *testing.T) {
 	t.Parallel()
 
