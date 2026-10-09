@@ -40,10 +40,8 @@ package common
 
 import (
 	"container/list"
-	"maps"
 	"sync"
 	"time"
-	"weak"
 )
 
 // Cache interface for cache mechanism in the go driver
@@ -411,95 +409,4 @@ func NewSafeLRUCache[T any](maxSize int) *SafeLRUCache[T] {
 		lock:  sync.Mutex{},
 	}
 	return newC
-}
-
-// WeakRefCache stores values through weak references and has no maximum size.
-// Entries whose weak reference no longer points to a live value are removed
-// during periodic cleanup.
-type WeakRefCache[T any] struct {
-	cleanupInterval time.Duration
-	nextCleanup     time.Time
-	entries         map[string]weak.Pointer[T]
-}
-
-// NewWeakRefCache creates a WeakRefCache that removes nil weak references on
-// the provided cleanup interval.
-// parameters:
-//   - cleanupInterval interval for automatic cleanup
-//
-// returns:
-// .  a new WeakRefCache or nil if parameters are invalid
-func NewWeakRefCache[T any](cleanupInterval time.Duration) *WeakRefCache[T] {
-	if cleanupInterval <= 0 {
-		Odl.Error("cleanupInterval must be positive")
-		return nil
-	}
-
-	return &WeakRefCache[T]{
-		cleanupInterval: cleanupInterval,
-		nextCleanup:     time.Now().Add(cleanupInterval),
-		entries:         make(map[string]weak.Pointer[T]),
-	}
-}
-
-func (c *WeakRefCache[T]) Get(key string) (value *T, found bool) {
-	c.cleanupIfNeeded()
-
-	entry, ok := c.entries[key]
-	if !ok {
-		return nil, false
-	}
-
-	value = entry.Value()
-	if value == nil {
-		delete(c.entries, key)
-		return nil, false
-	}
-
-	return value, true
-}
-
-func (c *WeakRefCache[T]) Put(key string, value *T) *T {
-	c.cleanupIfNeeded()
-
-	var previous *T
-	if entry, ok := c.entries[key]; ok {
-		previous = entry.Value()
-	}
-
-	if value == nil {
-		var zero weak.Pointer[T]
-		c.entries[key] = zero
-		return previous
-	}
-
-	c.entries[key] = weak.Make(value)
-	return previous
-}
-
-func (c *WeakRefCache[T]) Remove(key string) bool {
-	c.cleanupIfNeeded()
-
-	if _, ok := c.entries[key]; ok {
-		delete(c.entries, key)
-		return true
-	}
-	return false
-}
-
-func (c *WeakRefCache[T]) Clear() {
-	clear(c.entries)
-	c.nextCleanup = time.Now().Add(c.cleanupInterval)
-}
-
-// cleanupIfNeeded perform cleanup of the map if necessary. I.e cleanup interval
-// has been consumed.
-func (c *WeakRefCache[T]) cleanupIfNeeded() {
-	if time.Now().Before(c.nextCleanup) {
-		return
-	}
-	maps.DeleteFunc(c.entries, func(k string, v weak.Pointer[T]) bool {
-		return c.entries[k].Value() == nil
-	})
-	c.nextCleanup = time.Now().Add(c.cleanupInterval)
 }

@@ -48,7 +48,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -62,7 +61,7 @@ type LoggingConfig interface {
 	GetTruncate() bool
 }
 
-// Oracle driver logger type
+// OracleLogger Oracle driver logger type
 type OracleLogger struct {
 	slog.Logger
 	sensitiveEnabled bool // do we allow sensitive information to be logged
@@ -130,12 +129,6 @@ func (l *OracleLogger) PacketDump(packetBytes []byte) {
 		OlPacketDump, "PacketDump", slog.Any(packetDumpAttrKey, packetBytes))
 }
 
-// keep weak references on all tagged loggers
-var allLoggers = NewWeakRefCache[OracleLogger](time.Minute)
-
-// lock to keeo maop access safe
-var allLoggersL sync.Mutex
-
 // OdlT gets a tagged logger.
 // argument :
 //   - tag, the tag for the returned sub logger
@@ -144,15 +137,7 @@ var allLoggersL sync.Mutex
 //   - a previously allocated sub looger or a new one if one is not already available
 func OdlT(tag string) *OracleLogger {
 	if len(tag) != 0 {
-		allLoggersL.Lock()
-		defer allLoggersL.Unlock()
-
-		val, ok := allLoggers.Get(tag)
-		if !ok || val == nil {
-			val = Odl.With("ID", tag)
-			allLoggers.Put(tag, val)
-		}
-		return val
+		return Odl.With("ID", tag)
 	}
 	return &Odl
 }
