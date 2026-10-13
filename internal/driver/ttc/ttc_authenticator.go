@@ -283,11 +283,12 @@ func (pa *passwordAuthenticator) _doOAuth(ctx context.Context) error {
 		drcpClassName := shelf.GetDriverConfig().ConnectionProperties.Drcp.Class
 		if len(drcpClassName) == 0 {
 			h := sha256.New()
-			_,_ = h.Write([]byte(shelf.GetDriverConfig().ConnectDescriptor))
+			_, _ = h.Write([]byte(shelf.GetDriverConfig().ConnectDescriptor))
 
-			drcpClassName = fmt.Sprintf("%s_%x",
-				shelf.GetDriverConfig().Credentials.User, h.Sum(nil))
-			common.Odl.Info(fmt.Sprintf("No DRCP class name specified, using [%s]",
+			uuid := driverCommon.GenRandomString(4)
+			drcpClassName = fmt.Sprintf("%s_%x_%s",
+				shelf.GetDriverConfig().Credentials.User, h.Sum(nil), uuid)
+			common.Odl.Fine(fmt.Sprintf("No DRCP class name specified, using [%s]",
 				drcpClassName))
 		}
 		oauthMsg.(*oAuth).setDrcpConnectionClass(

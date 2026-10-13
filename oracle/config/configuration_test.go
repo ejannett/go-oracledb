@@ -78,6 +78,9 @@ func TestValidateLoggingLevel(t *testing.T) {
 			value: "ERROR",
 			want:  slog.LevelError.String(),
 		},
+		{name: "fine", value: "fine", want: slog.Level(-8).String()},
+		{name: "finest", value: "finest", want: slog.Level(-16).String()},
+		{name: "mixed case finest", value: "FiNeSt", want: slog.Level(-16).String()},
 		{
 			name:    "invalid level",
 			value:   "TRACE",

@@ -51,12 +51,12 @@ type ttiOCSessrel struct {
 	header      driverCommon.Marshallable
 	sessrlstag  string // not used as we use OCSessrel  as ONWAYFN
 	sessrlsmode driverCommon.UB4
-	tag string
+	tag         string
 }
 
 const (
-	sessRlsRetag             = 0x00000004;
-	sessRlsMultiPropertyTag = 0x00000008;
+	sessRlsRetag            = 0x00000004
+	sessRlsMultiPropertyTag = 0x00000008
 )
 
 // newttiOCSessrel allocates a new receiver for OCSSESSREL payloads.
@@ -89,7 +89,7 @@ func (spf *ttiOCSessrel) GetFuncCode() driverCommon.FunctionType {
 	return ocsessrls
 }
 
-func (spf *ttiOCSessrel) SetTag(tag string)  {
+func (spf *ttiOCSessrel) SetTag(tag string) {
 	spf.tag = tag
 	if len(spf.tag) > 0 {
 		spf.sessrlsmode |= sessRlsRetag
@@ -98,7 +98,7 @@ func (spf *ttiOCSessrel) SetTag(tag string)  {
 	}
 }
 
-func (spf *ttiOCSessrel) SetMultiPropertyTagMode(toggle bool)  {
+func (spf *ttiOCSessrel) SetMultiPropertyTagMode(toggle bool) {
 	if toggle {
 		spf.sessrlsmode |= sessRlsMultiPropertyTag
 	} else {
@@ -127,10 +127,10 @@ func (spf *ttiOCSessrel) MarshalTo(ctx context.Context, engine driverCommon.Mars
 			return err
 		}
 	} else {
-		engine.MarshalSB4(ctx,0)
+		engine.MarshalSB4(ctx, 0)
 		engine.MarshalNullPTR(ctx)
 	}
-	engine.MarshalUB4(ctx, spf.sessrlsmode);
+	engine.MarshalUB4(ctx, spf.sessrlsmode)
 	if len(B1Tag) > 0 {
 		err := engine.MarshalB1Array(ctx, B1Tag)
 		//err := engine.MarshalCLR(ctx, B1Tag,0,len(B1Tag))

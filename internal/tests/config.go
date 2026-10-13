@@ -222,7 +222,7 @@ func (t *TestConfig) GetConnectionStringWithProperties(properties map[string]str
 	}
 
 	if len(t.Database.ServerType) > 0 {
-		resC.WriteString(fmt.Sprintf("(server=%s)", t.Database.ServerType))
+		resC.WriteString(fmt.Sprintf("(SERVER=%s)", t.Database.ServerType))
 	}
 
 	resC.WriteString(")")
@@ -243,9 +243,6 @@ func (t *TestConfig) GetConnectionStringWithProperties(properties map[string]str
 			resC.WriteString(fmt.Sprintf("(ssl_server_cert_dn=\"%s\")", t.Security.SslServerCertDn))
 		}
 		resC.WriteString(")")
-	}
-	if t.Database.ServerType != "" {
-		resC.WriteString(fmt.Sprintf("(SERVER=%s)", t.Database.ServerType))
 	}
 	resC.WriteString(")")
 

@@ -210,6 +210,6 @@ func (rpa *ttiOCSessgetRpa) UnMarshalFrom(ctx context.Context, engine driverComm
 		common.Odl.Warn("Failed to unmarshall OCSSESSGET RPA flags", "error", err)
 		return common.NewOracleError(oracleErrors.FailMarshal, err, nil)
 	}
-	common.Odl.Debug("ttiOCSessgetRpa returned","returnTag",rpa.returnTag)
+	common.Odl.Debug("ttiOCSessgetRpa returned", "returnTag", rpa.returnTag)
 	return nil
 }

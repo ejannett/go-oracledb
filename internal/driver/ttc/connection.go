@@ -418,7 +418,7 @@ func (c *connection) AttachToResidentPool(ctx context.Context) error {
 	streamer.RegisterPreUnmarshallCallback(TTIRPA,
 		func(mh *messageHeader) (driverCommon.Message[driverCommon.MessageType], error) {
 			return newTtiOCSessgetRpa(), nil
-	})
+		})
 
 	for {
 		rMsg, err := c.shelf.GetMessageStreamer().Pull(ctx, TTIRPA, TTISPF, TTISTA, TTIOER)

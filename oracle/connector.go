@@ -128,7 +128,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	isNsConnected := false
 	isConnectionEstablished := false
 
-	sessionUid, _ := session.GenUUID()
+	sessionUid := driverCommon.GenUUID()
 
 	localizationService := common.NewLocalizationService(c.connectorConfig.Locale.ClientLanguage)
 

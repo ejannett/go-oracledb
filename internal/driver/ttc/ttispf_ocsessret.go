@@ -61,10 +61,10 @@ type ttiSPFOCSessret struct {
 }
 
 const (
-	sessgetTagMismatch= 0x00000001;
-	sessgetPurityNew= 0x00000002;
-	sessgetSessionChanged= 0x00000004;
-	sessgetStmtCacheDestroy= 0x00000008;
+	sessgetTagMismatch      = 0x00000001
+	sessgetPurityNew        = 0x00000002
+	sessgetSessionChanged   = 0x00000004
+	sessgetStmtCacheDestroy = 0x00000008
 )
 
 func (spf *ttiSPFOCSessret) getSessretidx() driverCommon.UB4 {

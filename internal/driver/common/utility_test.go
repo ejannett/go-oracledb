@@ -156,10 +156,7 @@ func TestUtility_NonBMPStringToB1Array(t *testing.T) {
 
 func TestGenUUID(t *testing.T) {
 	t.Parallel()
-	uuid, err := GenUUID()
-	if err != nil {
-		t.Fatalf("GenUUID returned error: %v", err)
-	}
+	uuid := GenUUID()
 	if _, err := base64.StdEncoding.DecodeString(uuid); err != nil {
 		t.Fatalf("GenUUID did not return base64 string: %v", err)
 	}

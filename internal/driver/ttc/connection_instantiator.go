@@ -180,6 +180,7 @@ func GetAuthenticator(parameters *oracleconfig.OracleDriverConfig, providerRegis
 			return createPasswordAuthenticator(parameters)
 		}
 	} else {
+		common.Odl.Fine("No user in credentials")
 		if len(parameters.Credentials.Password) > 0 {
 			// if there is a password but no username
 			return nil, common.NewOracleError(oracleErrors.EmptyUsernameError, nil, nil)

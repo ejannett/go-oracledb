@@ -140,8 +140,8 @@ const (
 
 	AuthKpplConnClass      = "AUTH_KPPL_CONN_CLASS"
 	AuthKpplPurity         = "AUTH_KPPL_PURITY"
-	AuthKpplTag            = "AUTH_KPPL_TAG";
-	AuthKpplIsMultiPropTag = "AUTH_KPPL_IS_MULTIPROP_TAG";
+	AuthKpplTag            = "AUTH_KPPL_TAG"
+	AuthKpplIsMultiPropTag = "AUTH_KPPL_IS_MULTIPROP_TAG"
 
 	// Additional SESSION_* NLS keys used by server piggybacks (OCSSYNC)
 	sessionNlsLxcCharset   = "SESSION_NLS_LXCCHARSET"
@@ -518,6 +518,7 @@ var _drcpClassNameKey = driverCommon.StringToB1Array(AuthKpplConnClass)
 var _drcpPurityKey = driverCommon.StringToB1Array(AuthKpplPurity)
 var _drcpTagName = driverCommon.StringToB1Array(AuthKpplTag)
 var _drcpMultiPropTag = driverCommon.StringToB1Array(AuthKpplIsMultiPropTag)
+
 func (o *oAuth) setDRCPKeyValsForOAUTH() {
 	o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpClassNameKey, Value: o.connectionClass})
 	o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpPurityKey, Value: o.connectionPurity})

@@ -115,7 +115,7 @@ func TestDriver_Table_EmptyStringSelect(t *testing.T) {
 	config.Credentials.LogonMode = TestingConfig.Credentials.LogonMode
 	config.Credentials.User = TestingConfig.Credentials.Username
 	config.Credentials.Password = TestingConfig.Credentials.Password
-    config.ConnectDescriptor = TestingConfig.GetConnectionDSN()
+	config.ConnectDescriptor = TestingConfig.GetConnectionDSN()
 	config.DriverProperties.StrictNullValueHandling = true
 	connector, err := NewOracleConnector(config)
 
@@ -130,15 +130,14 @@ func TestDriver_Table_EmptyStringSelect(t *testing.T) {
 		t.Fatalf("ping connection failed: %v", err)
 	}
 
-
 	table := createObjectName("t_select_string_empty")
 	//table := "godrivertest_261008_t_select_string_empty_943800"
 	ctx := context.Background()
 	cols := map[string]string{
-		"id":   "number",
-		"A": "varchar2(100)",
-		"B": "varchar2(100)",
-		"C": "varchar2(100)",
+		"id": "number",
+		"A":  "varchar2(100)",
+		"B":  "varchar2(100)",
+		"C":  "varchar2(100)",
 	}
 	if err := createTable(ctx, db, table, cols); err != nil {
 		t.Fatalf("create table failed: %v", err)
@@ -165,20 +164,17 @@ func TestDriver_Table_EmptyStringSelect(t *testing.T) {
 		var _b sql.NullString
 		var _c sql.NullString
 
-		if err := rows.Scan(&id, &_a, &_b,&_c); err != nil {
+		if err := rows.Scan(&id, &_a, &_b, &_c); err != nil {
 			t.Fatalf("scan failed: %v", err)
 		}
 
-		t.Logf("row: id=%d a=%s b=%s c=%s", id, _a.String,_b.String,_c.String)
+		t.Logf("row: id=%d a=%s b=%s c=%s", id, _a.String, _b.String, _c.String)
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("rows err: %v", err)
 	}
 
 }
-
-
-
 
 // TestDriver_Select_5000Rows_NumberColumn verifies that the driver can fetch
 // and decode at least 5,000 rows containing NUMBER values without losing rows
