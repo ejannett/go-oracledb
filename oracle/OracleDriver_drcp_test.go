@@ -98,7 +98,7 @@ func TestDriver_DRCP_Basic(t *testing.T) {
 	}
 
 	// here we are already attached as going out of th pool attaches us.
-	if !isDrcpAttached(t, config, config.ConnectionProperties.Drcp.Class) {
+	if !isDrcpAttached(t, config, config.ConnectionProperties.Drcp.Class, "") {
 		t.Fatalf("Should be attached now")
 	}
 
@@ -115,7 +115,7 @@ func TestDriver_DRCP_Basic(t *testing.T) {
 	}
 
 	time.Sleep(1 * time.Second)
-	if isDrcpAttached(t, config, config.ConnectionProperties.Drcp.Class) {
+	if isDrcpAttached(t, config, config.ConnectionProperties.Drcp.Class, "") {
 		t.Fatalf("Should be detached now")
 	}
 
@@ -187,6 +187,51 @@ func TestDriver_DRCP_ClassAutoGen(t *testing.T) {
 
 }
 
+// TestDriver_DRCP_ClassTag verifies that class tag is indeed set .
+// Expectations: DRCP should work, and class tag should be present in remote DRCP views.
+func TestDriver_DRCP_ClassTag(t *testing.T) {
+	t.Parallel()
+	if TestingConfig == nil {
+		t.Skip("No configuration available")
+	}
+
+	tConf := TestingConfig.Clone()
+	tConf.Database.ServerType = common.ServerTypePooled
+	config := NewOracleDriverConfig()
+	config.Credentials.LogonMode = tConf.Credentials.LogonMode
+	config.Credentials.User = tConf.Credentials.Username
+	config.Credentials.Password = tConf.Credentials.Password
+	config.ConnectionProperties.ServerType = common.ServerTypePooled
+
+	config.ConnectionProperties.Drcp.Tag = drvCommon.GenRandomString(2)
+	config.ConnectionProperties.Drcp.Class = "TestDriver_DRCP_ClassTag"
+
+	config.ConnectDescriptor = tConf.GetConnectionDSN()
+	connector, err := NewOracleConnector(config)
+	if err != nil {
+		t.Fatalf("create connector failed: %v", err)
+	}
+	db := sql.OpenDB(connector)
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close db: %v", err)
+		}
+	}()
+	db.SetMaxOpenConns(1)
+
+	cnx, err := db.Conn(context.Background())
+	if err != nil {
+		t.Fatalf("get dedicated sql connection failed: %v", err)
+	}
+	defer cnx.Close()
+
+	if !isDrcpAttached(t, config,
+		config.ConnectionProperties.Drcp.Class,
+		config.ConnectionProperties.Drcp.Tag) {
+		t.Errorf("tag not found in DRCP stats ")
+	}
+}
+
 func TestDriver_DRCP_Implicit(t *testing.T) {
 	t.Parallel()
 	if TestingConfig == nil {
@@ -229,7 +274,7 @@ func TestDriver_DRCP_Implicit(t *testing.T) {
 	infos := getAttachmentInfo(t, config)
 	var gotIt bool = false
 	for _, info := range infos {
-		// in stat view the class is fully qualified
+		// in the stat view, the class name is fully qualified
 		if strings.HasSuffix(info.className, config.ConnectionProperties.Drcp.Class) {
 			gotIt = true
 		}
@@ -285,7 +330,7 @@ func TestDriver_DRCP_Explicit(t *testing.T) {
 	oracleConnection, err := NewConnectionWrapper(cnx)
 
 	// here we are already attached as going out of th pool attaches us.
-	if !isDrcpAttached(t, config, config.ConnectionProperties.Drcp.Class) {
+	if !isDrcpAttached(t, config, config.ConnectionProperties.Drcp.Class, "") {
 		t.Fatalf("Should be attached now")
 	}
 
@@ -305,7 +350,7 @@ func TestDriver_DRCP_Explicit(t *testing.T) {
 	}
 	// Have to wait a little bit , be sure that remote view is updated
 	time.Sleep(1 * time.Second)
-	if isDrcpAttached(t, config, config.ConnectionProperties.Drcp.Class) {
+	if isDrcpAttached(t, config, config.ConnectionProperties.Drcp.Class, "") {
 		t.Fatalf("Should be detached now")
 	}
 
@@ -314,7 +359,7 @@ func TestDriver_DRCP_Explicit(t *testing.T) {
 		t.Fatalf("Can't attach from DRCP: %v", err)
 	}
 
-	if !isDrcpAttached(t, config, config.ConnectionProperties.Drcp.Class) {
+	if !isDrcpAttached(t, config, config.ConnectionProperties.Drcp.Class, "") {
 		t.Fatalf("Should be attached now")
 	}
 
@@ -323,14 +368,15 @@ func TestDriver_DRCP_Explicit(t *testing.T) {
 // isDrcpAttached checks that a DRCP class is attached
 // parameters:
 //
-//	t testing
-//	db DB object to perform priv selection on stat views
-//	expectedClass the DRCP connection class to look for
+//	t: testing
+//	db:  DB object to perform priv selection on stat views
+//	expectedClass: the DRCP connection class to look for
+//	expectedTag: the DRCP class tag to look for (if not empty)
 //
 // returns:
 //
 //	true if attached, false otherwise.
-func isDrcpAttached(t *testing.T, config *config.OracleDriverConfig, expectedClass string) bool {
+func isDrcpAttached(t *testing.T, config *config.OracleDriverConfig, expectedClass string, expectedTag string) bool {
 	t.Helper()
 
 	var attachedClass sql.NullString
@@ -379,11 +425,18 @@ func isDrcpAttached(t *testing.T, config *config.OracleDriverConfig, expectedCla
 		t.Fatalf("scan v$cpool_conn_info for attached DRCP class failed: %v", err)
 	}
 
+	t.Logf("DRCP conn info class %q , purity %q, tag %q, status %q",
+		attachedClass.String, purity.String, tag.String, connection_status.String)
+
 	if connection_status.String != "ACTIVE" {
 		return false
 	}
-	t.Logf("DRCP conn info class %q attached, purity %q, tag %q, status %q",
-		attachedClass.String, purity.String, tag.String, connection_status.String)
+	if len(expectedTag) > 0 {
+		if expectedTag != tag.String {
+			t.Logf("unexpected tag [%s], wanted [%s] ", tag.String, expectedTag)
+			return false
+		}
+	}
 	return true
 }
 
