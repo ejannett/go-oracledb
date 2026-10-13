@@ -42,6 +42,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/oracle/go-oracledb/v26/internal/common"
@@ -128,7 +129,8 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	isNsConnected := false
 	isConnectionEstablished := false
 
-	sessionUid := driverCommon.GenUUID()
+	sessionUid := strings.Clone(c.connectorConfig.ConnectionProperties.ConnectionIdPrefix)
+	sessionUid += driverCommon.GenUUID()
 
 	localizationService := common.NewLocalizationService(c.connectorConfig.Locale.ClientLanguage)
 

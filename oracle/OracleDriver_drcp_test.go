@@ -304,6 +304,8 @@ func TestDriver_DRCP_Explicit(t *testing.T) {
 	config.ConnectionProperties.Drcp.Class = "TestDriver_DRCP_Explicit"
 
 	config.ConnectDescriptor = tConf.GetConnectionDSN()
+
+
 	connector, err := NewOracleConnector(config)
 	if err != nil {
 		t.Fatalf("create connector failed: %v", err)

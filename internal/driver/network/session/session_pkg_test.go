@@ -153,7 +153,6 @@ var testCases = []oracleTest.CategorizedTestCase{
 	{Name: "TestPrepareWithSystemTrust", Categories: "unitary", Exclusive: false, Fn: TestPrepareWithSystemTrust},
 	{Name: "TestPrepareDefaultTimeout", Categories: "unitary", Exclusive: false, Fn: TestPrepareDefaultTimeout},
 	{Name: "TestPrepareWalletError", Categories: "unitary", Exclusive: false, Fn: TestPrepareWalletError},
-	{Name: "TestPrepareUUIDError", Categories: "unitary", Exclusive: false, Fn: TestPrepareUUIDError},
 	{Name: "TestPrepareNoPrefix", Categories: "unitary", Exclusive: false, Fn: TestPrepareNoPrefix},
 	{Name: "TestPrepareNonTCPSNoWalletLoad", Categories: "unitary", Exclusive: false, Fn: TestPrepareNonTCPSNoWalletLoad},
 	{Name: "TestWriteBytesWithContext", Categories: "unitary", Exclusive: false, Fn: TestWriteBytesWithContext},

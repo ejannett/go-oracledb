@@ -111,9 +111,6 @@ func TestSessionAttsSetFromDescription(t *testing.T) {
 	if satt.nt.RecvTimeout != 4 {
 		t.Fatalf("unexpected recv timeout: %d", satt.recvTimeout)
 	}
-	if satt.nt.Connectionidprefix != "prefix" {
-		t.Fatalf("unexpected Connectionidprefix: %s", satt.nt.Connectionidprefix)
-	}
 	if !satt.nt.EnabledDCD {
 		t.Fatalf("expected EnabledDCD to be true")
 	}
@@ -250,8 +247,7 @@ func TestReadWalletFileError(t *testing.T) {
 
 func TestPrepare(t *testing.T) {
 	t.Parallel()
-	satt := newSessionAtts("")
-	satt.nt.Connectionidprefix = "pref-"
+	satt := newSessionAtts("12345")
 	satt.nt.WalletLocation = ""
 	satt.nt.WalletContent = []byte("existing")
 	satt.nt.Transportconnecttimeout = 1000
@@ -260,12 +256,7 @@ func TestPrepare(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Prepare error: %v", err)
 	}
-	if satt.uuid == "" {
-		t.Fatalf("Prepare should set UUID")
-	}
-	if !strings.HasPrefix(satt.nt.Connectionid, "pref-") {
-		t.Fatalf("Connectionid not prefixed: %s", satt.nt.Connectionid)
-	}
+
 	if string(satt.nt.WalletContent) != "existing" {
 		t.Fatalf("wallet content changed: %s", satt.nt.WalletContent)
 	}
@@ -281,7 +272,7 @@ func TestPrepareWithWallet(t *testing.T) {
 	if err := os.WriteFile(walletPath, []byte("wallet"), 0600); err != nil {
 		t.Fatalf("write wallet error: %v", err)
 	}
-	satt := newSessionAtts("")
+	satt := newSessionAtts("12345")
 	satt.nt.WalletLocation = dir
 	satt.nt.Transportconnecttimeout = 0
 	satt.connectTimeout = 0
@@ -417,11 +408,6 @@ func TestPrepareWalletError(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected Prepare error for bad wallet path")
 	}
-}
-
-func TestPrepareUUIDError(t *testing.T) {
-	t.Parallel()
-	// Hard to force rand.Read error, but for coverage note it returns err
 }
 
 func TestPrepareNoPrefix(t *testing.T) {

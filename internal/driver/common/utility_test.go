@@ -160,5 +160,4 @@ func TestGenUUID(t *testing.T) {
 	if _, err := base64.StdEncoding.DecodeString(uuid); err != nil {
 		t.Fatalf("GenUUID did not return base64 string: %v", err)
 	}
-	// Error path from rand.Read is hard to test without mocking
 }

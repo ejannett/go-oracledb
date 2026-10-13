@@ -83,7 +83,7 @@ func newSessionAtts(uuid string) *sessionAtts {
 		largeSDU:                    false,
 		sdu:                         NSPDFSDULN,
 		tdu:                         NSPDFTDULN,
-		nt:                          transport.NTattributes{Connectionidprefix: "", TCPNODelay: true, SSLServerDNMatch: true},
+		nt:                          transport.NTattributes{TCPNODelay: true, SSLServerDNMatch: true},
 		uuid:                        uuid,
 		networkCompressionThreshold: 1024,
 		naFlags:                     NSINANOSERVICES,
@@ -104,7 +104,6 @@ func (sa *sessionAtts) setFrom(source interface{}) {
 	var transportConnectTimeout float64
 	var recvTimeout float64
 	var sendTimeout float64
-	var connectionIDPrefix string
 	var tcpNoDelay bool
 	var sslAllowWeakDNMatch bool
 	var sslServerDNMatch bool
@@ -126,7 +125,6 @@ func (sa *sessionAtts) setFrom(source interface{}) {
 		transportConnectTimeout = float64(src.TransportConnectTimeout)
 		recvTimeout = float64(src.RecvTimeout)
 		sendTimeout = float64(src.SendTimeout)
-		connectionIDPrefix = src.ConnectionIDPrefix
 		tcpNoDelay = true
 		sslAllowWeakDNMatch = src.Security.IsSSLAllowWeakDNMatchEnabled()
 		sslServerDNMatch = src.Security.IsSSLServerDNMatchEnabled()
@@ -178,9 +176,7 @@ func (sa *sessionAtts) setFrom(source interface{}) {
 	if sendTimeout > 0 {
 		sa.nt.SendTimeout = int(sendTimeout)
 	}
-	if connectionIDPrefix != "" {
-		sa.nt.Connectionidprefix = connectionIDPrefix
-	}
+
 	sa.nt.TCPNODelay = tcpNoDelay
 
 	if strings.ToUpper(enable) == "BROKEN" {
@@ -211,12 +207,7 @@ func (sa *sessionAtts) readWalletFile() ([]byte, error) {
 func (sa *sessionAtts) prepare(protocol driverCommon.Protocol) error {
 	sa.sdu = clamp(sa.sdu, NSPMNSDULN, NSPABSSDULN)
 
-	// TODO : remove this and handle it as driver configuration level
-	if sa.nt.Connectionidprefix != "" {
-		sa.nt.Connectionid = sa.nt.Connectionidprefix + sa.uuid
-	} else {
-		sa.nt.Connectionid = sa.uuid
-	}
+	sa.nt.Connectionid = sa.uuid
 
 	walletLocation := strings.TrimSpace(sa.nt.WalletLocation)
 	sa.nt.UseSystemTrust = protocol == driverCommon.ProtocolTCPS &&
