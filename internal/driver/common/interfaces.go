@@ -98,7 +98,7 @@ type ConnectionInstantiator interface {
 type DRCPUser interface {
 	// AttachToResidentPool Attach the connection to the remote pool.
 	// Errors: OGD-00180 / OGD-00181
-	AttachToResidentPool(ctx context.Context) error
+	AttachToResidentPool(ctx context.Context) (UB4, error)
 
 	// DetachFromResidentPool Detach the connection from the remote pool.
 	// Errors: OGD-00180 / OGD-00181

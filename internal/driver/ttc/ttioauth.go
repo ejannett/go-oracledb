@@ -142,6 +142,7 @@ const (
 	AuthKpplPurity         = "AUTH_KPPL_PURITY"
 	AuthKpplTag            = "AUTH_KPPL_TAG"
 	AuthKpplIsMultiPropTag = "AUTH_KPPL_IS_MULTIPROP_TAG"
+	AuthKpplFixUpCB        = "AUTH_KPPL_FIXUP_CB"
 
 	// Additional SESSION_* NLS keys used by server piggybacks (OCSSYNC)
 	sessionNlsLxcCharset   = "SESSION_NLS_LXCCHARSET"
@@ -187,6 +188,7 @@ type oAuth struct {
 	connectionPurity        driverCommon.B1Array
 	connectionTagName       driverCommon.B1Array
 	useDRCPMultipletag      bool
+	fixUpCBName             driverCommon.B1Array
 }
 
 // newOAuth creates a new Oracle Authentication (OAUTH) TTC message with the legacy
@@ -516,17 +518,21 @@ func (o *oAuth) setVSessionKeyValsForOAUTH() {
 
 var _drcpClassNameKey = driverCommon.StringToB1Array(AuthKpplConnClass)
 var _drcpPurityKey = driverCommon.StringToB1Array(AuthKpplPurity)
-var _drcpTagName = driverCommon.StringToB1Array(AuthKpplTag)
-var _drcpMultiPropTag = driverCommon.StringToB1Array(AuthKpplIsMultiPropTag)
+var _drcpTagNameKey = driverCommon.StringToB1Array(AuthKpplTag)
+var _drcpMultiPropTagKey = driverCommon.StringToB1Array(AuthKpplIsMultiPropTag)
+var _drcpFixUpCBKey = driverCommon.StringToB1Array(AuthKpplFixUpCB)
 
 func (o *oAuth) setDRCPKeyValsForOAUTH() {
 	o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpClassNameKey, Value: o.connectionClass})
 	o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpPurityKey, Value: o.connectionPurity})
 	if len(o.connectionTagName) > 0 {
-		o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpTagName, Value: o.connectionTagName})
+		o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpTagNameKey, Value: o.connectionTagName})
 		if o.useDRCPMultipletag {
-			o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpMultiPropTag, Value: driverCommon.StringToB1Array("TRUE")})
+			o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpMultiPropTagKey, Value: driverCommon.StringToB1Array("TRUE")})
 		}
+	}
+	if len(o.fixUpCBName) > 0 {
+		o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpFixUpCBKey, Value: o.fixUpCBName})
 	}
 }
 
@@ -744,7 +750,7 @@ func (rpa *OAuthRPA) GetMsgCode() driverCommon.MessageType {
 // It implements the common.UnMarshallable interface and reads the TTC protocol
 // data for the authentication reply, extracting connection properties and session information.
 func (rpa *OAuthRPA) UnMarshalFrom(ctx context.Context, engine driverCommon.Marshaller) error {
-	common.Odl.Debug("unmarshal OAUTH RPA starts")
+	common.Odl.Finest("unmarshal OAUTH RPA starts")
 	var err error
 	rpa.outNbPairs, err = engine.UnmarshalUB2(ctx)
 	if err != nil {
@@ -812,6 +818,6 @@ func (rpa *OAuthRPA) UnMarshalFrom(ctx context.Context, engine driverCommon.Mars
 			authScServiceName))
 
 	rpa.connectionValues.SetProperty(SessionTimeZone, rpa.sessionTimeZone)
-	common.Odl.Debug("unmarshal OAUTH RPA complete")
+	common.Odl.Finest("unmarshal OAUTH RPA complete")
 	return nil
 }

@@ -121,10 +121,7 @@ func (connInstantiator *connectionInstantiator) GetConnection(ctx context.Contex
 	sessCtx.GetClientProperties().SetProperty(driverCommon.RemotePort, connInstantiator.ns.GetRemotePort())
 	sessCtx.GetClientProperties().SetProperty(driverCommon.ConnectDescriptor, connInstantiator.driverConfig.ConnectDescriptor)
 
-	sessCtx.GetClientProperties().SetProperty(driverCommon.SessionUuid,
-		fmt.Sprintf("%s%s",
-			connInstantiator.driverConfig.ConnectionProperties.ConnectionIdPrefix,
-			connInstantiator.uuid))
+	sessCtx.GetClientProperties().SetProperty(driverCommon.SessionUuid, connInstantiator.uuid)
 
 	// Add connection properties to shelf for downstream consumers
 	shelf.UpdateDriverConfig(connInstantiator.driverConfig)

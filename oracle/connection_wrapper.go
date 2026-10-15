@@ -82,11 +82,35 @@ func NewConnectionWrapper(connection *sql.Conn) (*connectionWrapper, error) {
 	return wrapper, err
 }
 
-func (c *connectionWrapper) AttachToDrcpPool(ctx context.Context) error {
-	return c.connection.Raw(func(c any) error {
+type DRCPAttachmentStatus int
+
+const (
+	// TagMismatch the acquired session did not fully match the requested tag.
+	//   This is a result status, not necessarily an acquisition failure:
+	//   the server can return a new or otherwise acceptable session and still report the mismatch.
+	TagMismatch = 0x00000001
+	// PurityNew the server created a new database session for this acquire instead of reusing the previous one
+	PurityNew = 0x00000002
+	// SessionChanged tells the client that the server-side database session associated with its DRCP connection
+	//   has changed—or may be different on its next checkout—so client state tied to
+	//  the prior session must be invalidated. In particular, the server source describes
+	//  clearing the client’s statement cache to avoid using stale cursors.
+	SessionChanged = 0x00000004
+	// StmtCacheDestroy when paired with SESSGET_SESSION_CHANGED,
+	//   it tells OCI to purge the statement cache and discard cached cursor IDs
+	//   because they belong to the prior session
+	StmtCacheDestroy = 0x00000008
+)
+
+func (c *connectionWrapper) AttachToDrcpPool(ctx context.Context) (DRCPAttachmentStatus, error) {
+	var status DRCPAttachmentStatus = 0
+	error := c.connection.Raw(func(c any) error {
 		oc, _ := c.(driverCommon.DRCPUser)
-		return oc.AttachToResidentPool(ctx)
+		s, err := oc.AttachToResidentPool(ctx)
+		status = DRCPAttachmentStatus(s)
+		return err
 	})
+	return status, error
 }
 func (c *connectionWrapper) DetachFromDrcpPool(ctx context.Context) error {
 

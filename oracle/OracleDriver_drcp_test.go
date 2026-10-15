@@ -74,6 +74,8 @@ func TestDriver_DRCP_Basic(t *testing.T) {
 	config.ConnectionProperties.ServerType = common.ServerTypePooled
 	config.ConnectionProperties.Drcp.Class = "TestDriver_DRCP_Basic"
 
+	config.ConnectionProperties.ConnectionIdPrefix = "MANU"
+
 	config.ConnectDescriptor = tConf.GetConnectionDSN()
 	connector, err := NewOracleConnector(config)
 	if err != nil {
@@ -165,7 +167,7 @@ func TestDriver_DRCP_ClassAutoGen(t *testing.T) {
 	defer cnx.Close()
 
 	oc, _ := NewConnectionWrapper(cnx)
-	err = oc.AttachToDrcpPool(context.Background())
+	_, err = oc.AttachToDrcpPool(context.Background())
 	if err != nil {
 		if err != nil {
 			t.Fatalf("attach failed: %v", err)
@@ -230,6 +232,11 @@ func TestDriver_DRCP_ClassTag(t *testing.T) {
 		config.ConnectionProperties.Drcp.Tag) {
 		t.Errorf("tag not found in DRCP stats ")
 	}
+}
+
+func TestDriver_DRCP_Boundaries(t *testing.T) {
+	t.Parallel()
+	t.Errorf("Implement me")
 }
 
 func TestDriver_DRCP_Implicit(t *testing.T) {
@@ -305,7 +312,6 @@ func TestDriver_DRCP_Explicit(t *testing.T) {
 
 	config.ConnectDescriptor = tConf.GetConnectionDSN()
 
-
 	connector, err := NewOracleConnector(config)
 	if err != nil {
 		t.Fatalf("create connector failed: %v", err)
@@ -345,7 +351,7 @@ func TestDriver_DRCP_Explicit(t *testing.T) {
 	if !rows.Next() {
 		t.Fatalf("no row returned from DUAL")
 	}
-
+	t.Logf("Detaching from pool")
 	err = oracleConnection.DetachFromDrcpPool(context.Background())
 	if err != nil {
 		t.Fatalf("Can't detach from DRCP: %v", err)
@@ -355,11 +361,16 @@ func TestDriver_DRCP_Explicit(t *testing.T) {
 	if isDrcpAttached(t, config, config.ConnectionProperties.Drcp.Class, "") {
 		t.Fatalf("Should be detached now")
 	}
-
-	err = oracleConnection.AttachToDrcpPool(context.Background())
+	t.Logf("Attaching to pool")
+	status, err := oracleConnection.AttachToDrcpPool(context.Background())
 	if err != nil {
-		t.Fatalf("Can't attach from DRCP: %v", err)
+		t.Fatalf("Can't attach to DRCP: %v", err)
 	}
+	if status != 0 {
+		t.Fatalf("attach to DRCP status: %v", status)
+	}
+
+	t.Logf("Attachment done")
 
 	if !isDrcpAttached(t, config, config.ConnectionProperties.Drcp.Class, "") {
 		t.Fatalf("Should be attached now")

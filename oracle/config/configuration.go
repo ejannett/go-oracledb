@@ -165,12 +165,16 @@ type OracleConnectionProperties struct {
 	ConnectionIdPrefix string `default:"" validator:"" ns_name:"connection_id_prefix" help:"Sets the prefix for the connection ID"`
 }
 
+// DatabaseResidentConnectionPooling DRCP parameters.
+//
+//	Class name is mandatory whereas the other can be left blank.
 type DatabaseResidentConnectionPooling struct {
-	Class          string `ns_name:"pool_connection_class" help:"sets the DRCP connection class, when not specified a name is generated"`
-	Purity         string `ns_name:"pool_purity" help:"sets the DRCP purity" validator:"validateDRCPPurity" `
-	Boundary       string `ns_name:"pool_boundary" help:"sets the DRCP boundary" validator:"validateDRCPBoundary" `
-	Tag            string `help:"sets the tag for pooled DRCP connection"`
-	UseMultipleTag bool   `default:"false"  help:"Does the  pooled DRCP connection use multiple tags"`
+	Class             string `ns_name:"pool_connection_class" help:"sets the DRCP connection class, when not specified a name is generated"`
+	Purity            string `ns_name:"pool_purity" help:"sets the DRCP purity" validator:"validateDRCPPurity" `
+	Boundary          string `ns_name:"pool_boundary" help:"sets the DRCP boundary" validator:"validateDRCPBoundary" `
+	Tag               string `help:"sets the tag for pooled DRCP connection"`
+	UseMultipleTag    bool   `default:"false"  help:"Does the  pooled DRCP connection use multiple tags"`
+	FixUpCallBackName string `help:"Name of the PL/SQL callback used to transform a session checked out from the pool to the desired state requested by the application"`
 }
 
 func (config DatabaseResidentConnectionPooling) String() string {

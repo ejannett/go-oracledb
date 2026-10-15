@@ -74,6 +74,8 @@ type connection struct {
 	_drcpState int
 	// _drcpConnectionState keeps track of the current DRCP attachment state.
 	_drcpConnectionState int
+
+	_logger *common.OracleLogger
 }
 
 const _drcpDisabled = 0        // DRCP not used
@@ -100,6 +102,8 @@ func newConnection(
 		_drcpState:           _drcpDisabled,
 		_drcpConnectionState: _drcpConnectionStateDetached,
 	}
+
+	conn._logger = common.OdlT(sessCtx.GetClientProperties().GetProperty(driverCommon.SessionUuid).(string))
 
 	if shelf.Shelf.GetDriverConfig().ConnectionProperties.ServerType == common.ServerTypePooled {
 		conn._drcpState = _drcpExplicitPooling
@@ -154,7 +158,7 @@ Returns:
 - error: Non-nil if the connection is closed/invalid.
 */
 func (c *connection) PrepareContext(_ context.Context, query string) (driver.Stmt, error) {
-	common.Odl.Fine("Connection.PrepareContext: creating statement...")
+	c._logger.Fine("Connection.PrepareContext: creating statement...")
 	stmt, err := newStatement(c.shelf, c.sessCtx, query)
 	if err != nil {
 		return nil, c.shelf.LocalizeError(err)
@@ -165,7 +169,7 @@ func (c *connection) PrepareContext(_ context.Context, query string) (driver.Stm
 // ExecContext implements driver.ExecerContext.
 // It creates a TTC Statement and delegates the execution.
 func (c *connection) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	common.Odl.Fine("Connection.ExecContext: creating statement...")
+	c._logger.Fine("Connection.ExecContext: creating statement...")
 	stmt, err := newStatement(c.shelf, c.sessCtx, query)
 	if err != nil {
 		return nil, c.shelf.LocalizeError(err)
@@ -173,7 +177,7 @@ func (c *connection) ExecContext(ctx context.Context, query string, args []drive
 	defer func() {
 		err := stmt.Close()
 		if err != nil {
-			common.Odl.Warn("Connection.ExecContext: failed to close statement", "error", err)
+			c._logger.Warn("Connection.ExecContext: failed to close statement", "error", err)
 		}
 	}()
 	result, execErr := stmt.ExecContext(ctx, args)
@@ -190,7 +194,7 @@ func (c *connection) QueryContext(ctx context.Context, query string, args []driv
 	defer func() {
 		err := stmt.Close()
 		if err != nil {
-			common.Odl.Warn("Connection.QueryContext: failed to close statement", "error", err)
+			c._logger.Warn("Connection.QueryContext: failed to close statement", "error", err)
 		}
 	}()
 	result, err := stmt.QueryContext(ctx, args)
@@ -243,7 +247,9 @@ func (c *connection) _handleConnectionShouldBeDropped(msg driverCommon.Message[d
 
 // String implements the Stringer interface
 func (c *connection) String() string {
-	return fmt.Sprintf("Connection { isOpen: %v, isValid: %v }", !c._isClosed, c._isValid)
+	return fmt.Sprintf("Connection { id: %v, isOpen: %v, isValid: %v }",
+		c.sessCtx.GetClientProperties().GetProperty(driverCommon.SessionUuid).(string),
+		!c._isClosed, c._isValid)
 }
 
 func (c *connection) registerEventListeners(service *eventService) {
@@ -256,13 +262,13 @@ func (c *connection) notify(event eventType) {
 	var wasValid = c._isValid == true
 	switch event {
 	case streamerStaleEvent:
-		common.Odl.Fine("Connection.notify: streamer stale received")
+		c._logger.Fine("Connection.notify: streamer stale received")
 		c._isValid = false
 	case streamerOverFlowEvent:
-		common.Odl.Fine("Connection.notify: streamer overflow received")
+		c._logger.Fine("Connection.notify: streamer overflow received")
 		c._isValid = false
 	default:
-		common.Odl.Fine("Connection.notify: received", "evt", event)
+		c._logger.Fine("Connection.notify: received", "evt", event)
 	}
 	if wasValid == true && c._isValid == false {
 		c.shelf.getEventService().post(connectionInvalidatedEvent)
@@ -317,7 +323,7 @@ func (c *connection) _registerServerTimezoneOffset(ctx context.Context) error {
 	defer func() {
 		err := rows.Close()
 		if err != nil {
-			common.Odl.Warn("_registerServerTimezoneOffset: failed to close rows", "error", err)
+			c._logger.Warn("_registerServerTimezoneOffset: failed to close rows", "error", err)
 		}
 	}()
 	values := make([]driver.Value, 1)
@@ -371,27 +377,28 @@ func parseTimeZone(timezone string) (int, int, error) {
 	return sign * TZH, sign * TZM, nil
 }
 
-func (c *connection) AttachToResidentPool(ctx context.Context) error {
-	common.Odl.Debug("attaching to DRCP")
+func (c *connection) AttachToResidentPool(ctx context.Context) (driverCommon.UB4, error) {
+	_l := c._logger.With("DRCP", "attachToDRCPool")
+	_l.Debug("attaching to DRCP")
 	if c._drcpState == _drcpDisabled {
-		common.Odl.Debug("Connection.attachToDRCPool called but drcp not enabled")
-		return common.NewOracleError(oracleErrors.DRCPNotEnabled, nil)
+		_l.Debug("attach called but drcp not enabled")
+		return 0, common.NewOracleError(oracleErrors.DRCPNotEnabled, nil)
 	}
 	if c._drcpState == _drcpImplicitPooling {
-		common.Odl.Debug("Connection.attachToDRCPool called but implicit pooling is in place ")
-		return common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpState)
+		_l.Debug("attach called but implicit pooling is in place ")
+		return 0, common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpState)
 	}
 	if c._drcpConnectionState == _drcpConnectionStateAttached {
-		common.Odl.Debug("Connection.attachToDRCPool called but connection is already attached")
-		return common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpConnectionState)
+		_l.Debug("attach called but connection is already attached")
+		return 0, common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpConnectionState)
 	}
 	if c._drcpState == _drcpImplicitPooling {
-		common.Odl.Debug("Connection.attachToDRCPool called but implicit pooling is in place")
-		return common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpConnectionState)
+		_l.Debug("attach called but implicit pooling is in place")
+		return 0, common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpConnectionState)
 	}
 	function, err := c.shelf.Shelf.GetMessageFactory().GetMessageForFunction(TTIFUN, ocsessget)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	getMsg := function.(*ttiOCSessget)
@@ -402,16 +409,16 @@ func (c *connection) AttachToResidentPool(ctx context.Context) error {
 
 	err = c.shelf.GetMessageStreamer().Push(ctx, getMsg)
 	if err != nil {
-		common.Odl.Debug("Connection.attachToDRCPool failed to send attachemnt request")
-		return common.NewOracleError(oracleErrors.DRCPAttachFailed, err)
+		_l.Debug("failed to send attachemnt request")
+		return 0, common.NewOracleError(oracleErrors.DRCPAttachFailed, err)
 	}
 	err = c.shelf.GetMessageStreamer().Flush(ctx)
 	if err != nil {
-		common.Odl.Debug("Connection.attachToDRCPool failed to flush attachment request", "error", err)
-		return common.NewOracleError(oracleErrors.DRCPAttachFailed, err)
+		_l.Debug(" failed to flush attachment request", "error", err)
+		return 0, common.NewOracleError(oracleErrors.DRCPAttachFailed, err)
 	}
 
-	common.Odl.Debug("request session message sent, pulling for response")
+	_l.Debug("request session message sent, pulling for response")
 
 	streamer := c.shelf.GetMessageStreamer().(MessageStreamerInterface)
 
@@ -421,66 +428,61 @@ func (c *connection) AttachToResidentPool(ctx context.Context) error {
 		})
 
 	for {
-		rMsg, err := c.shelf.GetMessageStreamer().Pull(ctx, TTIRPA, TTISPF, TTISTA, TTIOER)
+		// session get also laed to receive an SPF (ttiSPFOCSessret)
+		// but that's handled in serverToClientPiggybackUpdater
+		rMsg, err := c.shelf.GetMessageStreamer().Pull(ctx, TTIRPA, TTISTA, TTIOER)
 		if err != nil {
-			common.Odl.Debug("Connection.attachToDRCPool error pulling the RPA")
-			return common.NewOracleError(oracleErrors.DRCPAttachFailed, err)
+			_l.Debug("error pulling the messages")
+			return 0, common.NewOracleError(oracleErrors.DRCPAttachFailed, err)
 		}
 
+		var returnedFlag driverCommon.UB4 = 0
 		switch rMsg.GetMsgCode() {
-		case TTISPF:
-			common.Odl.Debug("Connection.attachToDRCPool: TTISPF received")
-			//function, ok := rMsg.(driverCommon.Function)
-			//if !ok || function.GetFuncCode() != ocsessret {
-			//	// TODO : deal with this
-			//}
-			//sessret := function.(*ttiSPFOCSessret)
-			//sessret.getSessretidx()
-			//sessret.getSessretser()
-			//// update the session metadata in the session properties cache
-			////props := driverCommon.NewProperties[string]()
-			////props.SetProperty(authSessionId, ttiSPFOCSessret.getSessretidx())
-			////props.SetProperty(authSessionSerial, ttiSPFOCSessret.getSessretser())
-			//if common.Odl.Enabled(common.BackgroundContext, slog.LevelDebug) {
-			//	common.Odl.Debug("session updated", authSessionId, sessret.getSessretidx(), authSessionSerial, sessret.getSessretser())
-			//}
-			// c.shelf.Shelf.sessionCtx.UpdateSessionProperties(props)
 		case TTIRPA:
-			common.Odl.Debug("Connection.attachToDRCPool: TTIRPA received")
+			rpa := rMsg.(*ttiOCSessgetRpa)
+			if _l.Enabled(common.BackgroundContext, common.OlFine) {
+				_l.Fine("TTIRPA received")
+				_l.Fine("ttiOCSessgetRpa/flags",
+					"sessgetTagMismatch", rpa.sessgetFlags&sessgetTagMismatch > 0,
+					"sessgetPurityNew", rpa.sessgetFlags&sessgetTagMismatch > 0,
+					"sessgetSessionChanged", rpa.sessgetFlags&sessgetSessionChanged > 0,
+					"sessgetStmtCacheDestroy", rpa.sessgetFlags&sessgetStmtCacheDestroy > 0)
+			}
+			returnedFlag = rpa.sessgetFlags
 		case TTIOER:
 			oer, _ := rMsg.(tTIOerIface)
 			err := oer.getError()
-			common.Odl.Debug("Connection.attachToDRCPool: TTIOER received")
-
+			_l.Fine("TTIOER received")
 			// OER or STA mark the end of the processing.
 			if err != nil {
-				return err
+				_l.Debug("TTIOER", "error", err)
+				return 0, err
 			}
 			c._drcpConnectionState = _drcpConnectionStateAttached
-			common.Odl.Info("attach session completed")
-			return nil
+			_l.Debug("attach session completed")
+			return returnedFlag, nil
 		case TTISTA:
 			// OER or STA mark the end of the processing
-			common.Odl.Debug("Connection.attachToDRCPool: TTISTA received")
+			_l.Fine("TTISTA received")
 			c._drcpConnectionState = _drcpConnectionStateAttached
-			common.Odl.Info("attach session completed")
-			return nil
+			_l.Debug("attach session completed")
+			return returnedFlag, nil
 		}
 	}
 
 }
 func (c *connection) DetachFromResidentPool(ctx context.Context) error {
-	common.Odl.Info("releasing from DRCP")
+	c._logger.Info("releasing from DRCP")
 	if c._drcpState == _drcpDisabled {
-		common.Odl.Debug("Connection.DetachFromResidentPool called but DRCP not enabled")
+		c._logger.Debug("Connection.DetachFromResidentPool called but DRCP not enabled")
 		return common.NewOracleError(oracleErrors.DRCPNotEnabled, nil)
 	}
 	if c._drcpState == _drcpImplicitPooling {
-		common.Odl.Debug("Connection.DetachFromResidentPool called but implicit pooling is in place ")
+		c._logger.Debug("Connection.DetachFromResidentPool called but implicit pooling is in place ")
 		return common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpState)
 	}
 	if c._drcpConnectionState != _drcpConnectionStateAttached {
-		common.Odl.Debug("Connection.DetachFromResidentPool called but connection is already detached")
+		c._logger.Debug("Connection.DetachFromResidentPool called but connection is already detached")
 		return common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpConnectionState)
 	}
 
@@ -496,39 +498,16 @@ func (c *connection) DetachFromResidentPool(ctx context.Context) error {
 
 	err = c.shelf.GetMessageStreamer().Push(ctx, relMsg)
 	if err != nil {
-		common.Odl.Debug("Connection.DetachFromResidentPool failed to send detach request")
+		c._logger.Debug("Connection.DetachFromResidentPool failed to send detach request")
 		return err
 	}
 	err = c.shelf.GetMessageStreamer().Flush(ctx)
 	if err != nil {
-		common.Odl.Debug("Connection.DetachFromResidentPool failed to flush detach request")
+		c._logger.Debug("Connection.DetachFromResidentPool failed to flush detach request")
 		return err
 	}
 
-	//for {
-	//
-	//	rMsg, err := c.shelf.GetMessageStreamer().Pull(ctx, TTISTA, TTIOER)
-	//	if err != nil {
-	//		common.Odl.Debug("Connection.attachToDRCPool error pulling the RPA")
-	//		return common.NewOracleError(oracleErrors.DRCPAttachFailed, err)
-	//	}
-	//
-	//	switch rMsg.GetMsgCode() {
-	//	//case TTISPF:
-	//	//	common.Odl.Debug("Connection.attachToDRCPool: TTISPF received")
-	//	//case TTIRPA:
-	//	//	common.Odl.Debug("Connection.attachToDRCPool: TTIRPA received")
-	//	case TTIOER:
-	//		common.Odl.Debug("Connection.attachToDRCPool: TTIOER received")
-	//		// OER or STA mark the end of the processing
-	//		return nil
-	//	case TTISTA:
-	//		// OER or STA mark the end of the processing
-	//		common.Odl.Debug("Connection.attachToDRCPool: TTISTA received")
-	//		return nil
-	//	}
-	//}
-	common.Odl.Debug("DRCP release done")
+	c._logger.Debug("DRCP release done")
 	c._drcpConnectionState = _drcpConnectionStateDetached
 
 	return nil

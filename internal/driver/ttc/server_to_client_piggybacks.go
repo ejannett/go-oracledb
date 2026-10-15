@@ -51,6 +51,8 @@ func registerServerToClientPiggybacks(shelf *ttiShelf[driverCommon.MessageType],
 	sessionUpdater := &serverToClientPiggybackUpdater{
 		shelf:      shelf,
 		sessionCtx: sessionContext,
+		logger: common.Odl.With("serverToClientPiggybackUpdater",
+			sessionContext.GetClientProperties().GetProperty(driverCommon.SessionUuid)),
 	}
 	messageStreamer.RegisterPostUnmarshallCallback(TTISPF, sessionUpdater.handleServerToClientPiggyback)
 }
@@ -60,6 +62,7 @@ func registerServerToClientPiggybacks(shelf *ttiShelf[driverCommon.MessageType],
 type serverToClientPiggybackUpdater struct {
 	shelf      *ttiShelf[driverCommon.MessageType]
 	sessionCtx *driverCommon.SessionContext
+	logger     *common.OracleLogger
 }
 
 // handleServerToClientPiggyback handles server to client piggyback messages.
@@ -86,7 +89,7 @@ func (sessionUpdater serverToClientPiggybackUpdater) handleServerToClientPiggyba
 }
 
 func (sessionUpdater serverToClientPiggybackUpdater) updateOsPID(msg driverCommon.Message[driverCommon.MessageType]) (bool, error) {
-	common.Odl.Debug("got updateOsPID")
+	sessionUpdater.logger.Debug("got updateOsPID")
 	//ttiSPFOSPID, _ := msg.(*ttiSPFOCOspid)
 	return false, nil
 }
@@ -94,7 +97,7 @@ func (sessionUpdater serverToClientPiggybackUpdater) updateOsPID(msg driverCommo
 // updateSessionSyncProperties handles OCSSYNC message. Updates session properties.
 func (sessionUpdater serverToClientPiggybackUpdater) updateSessionSyncProperties(msg driverCommon.Message[driverCommon.MessageType]) (bool, error) {
 
-	common.Odl.Debug("Update session sync properties")
+	sessionUpdater.logger.Debug("Update session sync properties")
 
 	ttiSPFOCSSync, _ := msg.(*ttiSPFOCSSync)
 
@@ -103,14 +106,22 @@ func (sessionUpdater serverToClientPiggybackUpdater) updateSessionSyncProperties
 	return false, nil
 }
 
-// updateSessionSyncProperties handles OCSSYNC message. Updates session properties.
+// updateSessionRetProperties handles ocsessret message. Updates session properties.
 func (sessionUpdater serverToClientPiggybackUpdater) updateSessionRetProperties(msg driverCommon.Message[driverCommon.MessageType]) (bool, error) {
+
 	ttiSPFOCSessret, _ := msg.(*ttiSPFOCSessret)
 	props := driverCommon.NewProperties[string]()
 	props.SetProperty(authSessionId, ttiSPFOCSessret.getSessretidx())
 	props.SetProperty(authSessionSerial, ttiSPFOCSessret.getSessretser())
-	common.Odl.Debug("ocsessret / session updated", authSessionId, ttiSPFOCSessret.getSessretidx(), authSessionSerial, ttiSPFOCSessret.getSessretser())
+	sessionUpdater.logger.Debug("updateSessionRetProperties", authSessionId, ttiSPFOCSessret.getSessretidx(), authSessionSerial, ttiSPFOCSessret.getSessretser())
 	sessionUpdater.sessionCtx.UpdateSessionProperties(props)
+	if sessionUpdater.logger.Enabled(common.BackgroundContext, common.OlFine) {
+		sessionUpdater.logger.Fine("ttiSPFOCSessret/flags",
+			"sessgetTagMismatch", ttiSPFOCSessret.sessretflags&sessgetTagMismatch > 0,
+			"sessgetPurityNew", ttiSPFOCSessret.sessretflags&sessgetTagMismatch > 0,
+			"sessgetSessionChanged", ttiSPFOCSessret.sessretflags&sessgetSessionChanged > 0,
+			"sessgetStmtCacheDestroy", ttiSPFOCSessret.sessretflags&sessgetStmtCacheDestroy > 0)
+	}
 
 	return false, nil
 }

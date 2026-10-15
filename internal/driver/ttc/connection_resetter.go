@@ -41,8 +41,6 @@ package ttc
 import (
 	"context"
 	"database/sql/driver"
-
-	"github.com/oracle/go-oracledb/v26/internal/common"
 )
 
 // ResetSession implements driver.SessionResetter.
@@ -50,37 +48,40 @@ import (
 // - Resets session properties
 // - Flushes piggyback messages
 func (c *connection) ResetSession(ctx context.Context) error {
-	common.Odl.Debug("ResetSession called", "cnx", (*c).String())
+
+	c._logger.Debug("ResetSession called", "cnx", (*c).String())
 
 	if c._isClosed || !c._isValid {
 		return driver.ErrBadConn
 	}
 
 	if c._drcpState == _drcpExplicitPooling && c._drcpConnectionState == _drcpConnectionStateDetached {
-		common.Odl.Debug("Attaching to DRCP")
-		err := c.AttachToResidentPool(ctx)
+		c._logger.Debug("Attaching to DRCP")
+		flag, err := c.AttachToResidentPool(ctx)
 		if err != nil {
-			common.Odl.Debug("Failed to attach to the DRCP pool", "error", err)
+			c._logger.Debug("Failed to attach to the DRCP pool", "error", err)
 			c._isValid = false
 			return driver.ErrBadConn
 		}
+
+		c._logger.Debug("Successfully attached to the DRCP pool", "flag", flag)
 	}
 
 	statements := c.shelf.GetStatements(true)
-	common.Odl.Debug("closing statements", "count", len(statements))
+	c._logger.Debug("closing statements", "count", len(statements))
 	for _, statement := range statements {
 		if err := statement.Close(); err != nil {
-			common.Odl.Warn("Stale statement left in connection cannot be closed", "error", err)
+			c._logger.Warn("Stale statement left in connection cannot be closed", "error", err)
 			c._isValid = false
 			return driver.ErrBadConn
 		}
 	}
 
 	c.sessCtx.GetSessionProperties().Reset()
-	common.Odl.Debug("Flushing streamer")
+	c._logger.Debug("Flushing streamer")
 	err := c.shelf.GetMessageStreamer().Flush(ctx)
 	if err != nil {
-		common.Odl.Warn("Flush of messages during reset has failed", "error", err)
+		c._logger.Warn("Flush of messages during reset has failed", "error", err)
 		return driver.ErrBadConn
 	}
 

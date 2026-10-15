@@ -77,7 +77,7 @@ type StreamerPreUnmarshallCallback func(*messageHeader) (driverCommon.Message[dr
 //	error: error that may have happened during previous steps in the streamer.
 //	       When not nil, the state of the passed message is not guarantied.
 //
-// This callback returns three values:
+// This callback returns two values:
 //
 //   - a boolean: boolean that tells if the current message being consumed by the streamer should be kept or not.
 //     That can be the case for session related message coming from the server.
@@ -116,6 +116,7 @@ type MessageStreamer struct {
 	shelf          *ttiShelf[driverCommon.MessageType]
 	postUCallbacks map[driverCommon.MessageType]StreamerPostUnmarshallCallback
 	preUCallbacks  map[driverCommon.MessageType]StreamerPreUnmarshallCallback
+	logger         *common.OracleLogger
 }
 
 // Safety net for memory.
@@ -136,6 +137,7 @@ func NewMessageStreamer(shelf *ttiShelf[driverCommon.MessageType]) *MessageStrea
 		postUCallbacks:   make(map[driverCommon.MessageType]StreamerPostUnmarshallCallback),
 		shelf:            shelf,
 	}
+	streamer.logger = common.Odl.With("module", "streamer")
 	// register the streamer as a state validator
 	shelf.registerStateValidator(streamer)
 	return streamer
@@ -143,18 +145,17 @@ func NewMessageStreamer(shelf *ttiShelf[driverCommon.MessageType]) *MessageStrea
 
 // Push implementation. See Streamer interface
 func (ms *MessageStreamer) Push(ctx context.Context, msg driverCommon.Message[driverCommon.MessageType]) error {
-
 	if msg == nil {
-		common.Odl.Warn("Null message pushed to the stream")
+		ms.logger.Warn("Null message pushed to the stream")
 		return common.NewOracleError(oracleErrors.InternalError, nil)
 	}
 
-	common.Odl.Fine("New push of message", "message", msg)
+	ms.logger.Fine("New push of message", "message", msg)
 	if ms.outgoingMessages.Len() > outgoingMessagesListMaxLength {
-		common.Odl.Warn("MessageStreamer: outgoing message queue overflow, forcing flush")
+		ms.logger.Warn("MessageStreamer: outgoing message queue overflow, forcing flush")
 		err := ms.Flush(ctx)
 		if err != nil {
-			common.Odl.Warn("MessageStreamer: oemergency flush failed, drain it", "error", err)
+			ms.logger.Warn("MessageStreamer: oemergency flush failed, drain it", "error", err)
 			ms.Drain(common.BackgroundContext, driverCommon.OUT)
 		}
 	}
@@ -188,11 +189,11 @@ func (ms *MessageStreamer) Pull(ctx context.Context, expectedMessageTypes ...dri
 		// read next message header
 		errHeader := nextHeader.UnMarshalFrom(ctx, ms.shelf.GetMarshaller())
 		if errHeader != nil {
-			common.Odl.Warn("Failed to unmarshal next message header", "error", errHeader)
+			ms.logger.Warn("Failed to unmarshal next message header", "error", errHeader)
 			return nil, common.NewOracleError(oracleErrors.StreamerReadError, errHeader, nil)
 		}
 
-		common.Odl.Info("new incoming message ", "header", nextHeader)
+		ms.logger.Debug("new incoming message ", "header", nextHeader)
 
 		var isExpectedMessageType = _isExpectedType(expectedMessageTypes, nextHeader.GetType())
 
@@ -203,7 +204,7 @@ func (ms *MessageStreamer) Pull(ctx context.Context, expectedMessageTypes ...dri
 		// Call preUnMarshal if registered
 		if preUnmarshalCallback != nil {
 			msg, processingError = preUnmarshalCallback(nextHeader)
-			common.Odl.Fine("Pre-unmarshal callback registered returned",
+			ms.logger.Fine("Pre-unmarshal callback registered returned",
 				"message", msg, "error", processingError)
 			// there is nothing we can do with error if any at this stage.
 			// we must go on to raise this error at the end either returning from Pull()
@@ -216,11 +217,11 @@ func (ms *MessageStreamer) Pull(ctx context.Context, expectedMessageTypes ...dri
 			//  either, we did not have any callback. in both cases, we have to call the factory
 			var ferr error
 			msg, ferr = ms.getMessageForHeader(nextHeader)
-			common.Odl.Fine("Getting message out of factory",
+			ms.logger.Fine("Getting message out of factory",
 				"message", msg, "error", processingError)
 			if ferr != nil {
 				// there is nothing we can do anymore. in that case raise the error
-				common.Odl.Warn("Error getting message from factory", "error", ferr)
+				ms.logger.Warn("Error getting message from factory", "error", ferr)
 				return nil, common.NewOracleError(oracleErrors.StreamerReadError, ferr, nil)
 			}
 		}
@@ -228,12 +229,12 @@ func (ms *MessageStreamer) Pull(ctx context.Context, expectedMessageTypes ...dri
 		if !isUnMarshallable {
 			// we received a message that we do not know how to unmarshal, throw
 			// error
-			common.Odl.Warn("Message does not implmente common.UnMarshallable", "msg", msg)
+			ms.logger.Warn("Message does not implmente common.UnMarshallable", "msg", msg)
 			return nil, common.NewOracleError(oracleErrors.StreamerReadError, nil, nil)
 		}
 		uerr := marshallable.UnMarshalFrom(ctx, ms.shelf.GetMarshaller())
 		if uerr != nil {
-			common.Odl.Info(fmt.Sprintf("can't unmarshal message: %v", uerr))
+			ms.logger.Info(fmt.Sprintf("can't unmarshal message: %v", uerr))
 			processingError = uerr
 		}
 		// Call PostUnMarshal if registered
@@ -241,29 +242,29 @@ func (ms *MessageStreamer) Pull(ctx context.Context, expectedMessageTypes ...dri
 		postUnmarshalCallback := ms.postUCallbacks[nextHeader.GetType()]
 		if postUnmarshalCallback != nil {
 			keep, processingError = postUnmarshalCallback(msg, processingError)
-			common.Odl.Fine("Post-unmarshal callback registered returned",
+			ms.logger.Fine("Post-unmarshal callback registered returned",
 				"keepIt", keep, "error", processingError)
 			if processingError != nil {
 				// let the caller deal with the error but log something anyway
-				common.Odl.Info(fmt.Sprintf("Post-unmarshal error callback failed: %v",
+				ms.logger.Info(fmt.Sprintf("Post-unmarshal error callback failed: %v",
 					processingError))
 			}
 		}
 
 		if !keep {
-			common.Odl.Fine("Message flagged for discard, will discard the message")
+			ms.logger.Fine("Message flagged for discard, will discard the message")
 			continue
 		}
 		if isExpectedMessageType {
-			common.Odl.Fine("New message out of streamer", "Message", msg)
+			ms.logger.Fine("New message out of streamer", "Message", msg)
 			return msg, processingError
 		} else {
-			common.Odl.Debug("Parking unexpected message", "Message", msg)
+			ms.logger.Debug("Parking unexpected message", "Message", msg)
 		}
 
 		// we do not keep a faulty message
 		if ms.incomingMessages.Len() >= incomingMessagesListMaxLength {
-			common.Odl.Error("MessageStreamer: incoming message queue overflow")
+			ms.logger.Error("MessageStreamer: incoming message queue overflow")
 			ms.shelf.getEventService().post(streamerOverFlowEvent)
 			return nil, common.NewOracleError(oracleErrors.InternalError, nil, nil)
 		}
@@ -280,8 +281,8 @@ func (ms *MessageStreamer) RegisterPreUnmarshallCallback(
 	msgType driverCommon.MessageType,
 	cb StreamerPreUnmarshallCallback,
 ) {
-	if common.Odl.Enabled(common.BackgroundContext, common.OlFine) {
-		common.Odl.Fine("Registering pre-unmarshal callback", "messageType", toString(msgType))
+	if ms.logger.Enabled(common.BackgroundContext, common.OlFine) {
+		ms.logger.Fine("Registering pre-unmarshal callback", "messageType", toString(msgType))
 	}
 	ms.preUCallbacks[msgType] = cb
 }
@@ -295,8 +296,8 @@ func (ms *MessageStreamer) RegisterPostUnmarshallCallback(
 	msgType driverCommon.MessageType,
 	cb StreamerPostUnmarshallCallback,
 ) {
-	if common.Odl.Enabled(common.BackgroundContext, common.OlFine) {
-		common.Odl.Fine("Registering post-unmarshal callback", "messageType", toString(msgType))
+	if ms.logger.Enabled(common.BackgroundContext, common.OlFine) {
+		ms.logger.Fine("Registering post-unmarshal callback", "messageType", toString(msgType))
 	}
 	ms.postUCallbacks[msgType] = cb
 }
@@ -307,8 +308,8 @@ func (ms *MessageStreamer) RegisterPostUnmarshallCallback(
 //   - msgType: type the message type we unregister the callback for.
 func (ms *MessageStreamer) UnRegisterPreUnmarshallCallback(
 	msgType driverCommon.MessageType) {
-	if common.Odl.Enabled(common.BackgroundContext, common.OlFine) {
-		common.Odl.Fine("Unregistering pre callback", "messageType", toString(msgType))
+	if ms.logger.Enabled(common.BackgroundContext, common.OlFine) {
+		ms.logger.Fine("Unregistering pre callback", "messageType", toString(msgType))
 	}
 	delete(ms.preUCallbacks, msgType)
 }
@@ -319,16 +320,16 @@ func (ms *MessageStreamer) UnRegisterPreUnmarshallCallback(
 //   - msgType: type the message type we unregister the callback for.
 func (ms *MessageStreamer) UnRegisterPostUnmarshallCallback(
 	msgType driverCommon.MessageType) {
-	if common.Odl.Enabled(common.BackgroundContext, common.OlFine) {
-		common.Odl.Fine("Unregistering post callback", "messageType", toString(msgType))
+	if ms.logger.Enabled(common.BackgroundContext, common.OlFine) {
+		ms.logger.Fine("Unregistering post callback", "messageType", toString(msgType))
 	}
 	delete(ms.postUCallbacks, msgType)
 }
 
 // Flush implementation. See Streamer interface
 func (ms *MessageStreamer) Flush(ctx context.Context) error {
-	if common.Odl.Enabled(common.BackgroundContext, common.OlFine) {
-		common.Odl.Fine("Flush requested", "outgoing length", ms.outgoingMessages.Len())
+	if ms.logger.Enabled(common.BackgroundContext, common.OlFine) {
+		ms.logger.Fine("Flush requested", "outgoing length", ms.outgoingMessages.Len())
 	}
 
 	var err error
@@ -343,13 +344,13 @@ func (ms *MessageStreamer) Flush(ctx context.Context) error {
 
 		err = header.MarshalTo(ctx, ms.shelf.GetMarshaller())
 		if err != nil {
-			common.Odl.Warn("Failed to flush, can't marshall message code", "error", err)
+			ms.logger.Warn("Failed to flush, can't marshall message code", "error", err)
 			return common.NewOracleError(oracleErrors.StreamerWriteError, err, nil)
 		}
 
 		err = marshalable.MarshalTo(ctx, ms.shelf.GetMarshaller())
 		if err != nil {
-			common.Odl.Warn("Failed to flush, can't mashall message", "error", err)
+			ms.logger.Warn("Failed to flush, can't mashall message", "error", err)
 			return common.NewOracleError(oracleErrors.StreamerWriteError, err, nil)
 		}
 		ms.outgoingMessages.Remove(outgoing)
@@ -357,7 +358,7 @@ func (ms *MessageStreamer) Flush(ctx context.Context) error {
 
 	err = ms.shelf.GetMarshaller().Flush(ctx)
 	if err != nil {
-		common.Odl.Warn("Failed to flush, can't flush underlying layer", "error", err)
+		ms.logger.Warn("Failed to flush, can't flush underlying layer", "error", err)
 		return common.NewOracleError(oracleErrors.StreamerWriteError, err, nil)
 	}
 	return err
@@ -365,8 +366,8 @@ func (ms *MessageStreamer) Flush(ctx context.Context) error {
 
 // Drain implementation. See Streamer interface
 func (ms *MessageStreamer) Drain(ctx context.Context, direction driverCommon.StreamDirection) (int, int) {
-	if common.Odl.Enabled(common.BackgroundContext, common.OlFine) {
-		common.Odl.Fine(fmt.Sprintf("Drain requested outgoing length [%d], incoming length [%d]",
+	if ms.logger.Enabled(common.BackgroundContext, common.OlFine) {
+		ms.logger.Fine(fmt.Sprintf("Drain requested outgoing length [%d], incoming length [%d]",
 			ms.outgoingMessages.Len(),
 			ms.incomingMessages.Len()))
 	}
@@ -399,7 +400,7 @@ func (ms *MessageStreamer) isValid(ctx context.Context) bool {
 		return true
 	}
 
-	common.Odl.Error("unexpected messages remained; invalidating connection",
+	ms.logger.Error("unexpected messages remained; invalidating connection",
 		"remaining messageCount", msgIn)
 	ms.shelf.getEventService().post(streamerStaleEvent)
 	return false

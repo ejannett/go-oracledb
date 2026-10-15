@@ -269,10 +269,12 @@ var testCases = []oracleTest.CategorizedTestCase{
 	{Name: "TestIssue_DecodeBinaryColumnType", Categories: "functional", Exclusive: false, Fn: TestIssue_DecodeBinaryColumnType},
 	{Name: "TestServerError", Categories: "functional", Exclusive: false, Fn: TestServerError},
 	{Name: "TestDriver_DRCP_Basic", Categories: "functional", Exclusive: false, Fn: TestDriver_DRCP_Basic},
-	{Name: "TestDriver_DRCP_ClassAutoGen", Categories: "functional", Exclusive: false, Fn:TestDriver_DRCP_ClassAutoGen },
+	{Name: "TestDriver_DRCP_ClassAutoGen", Categories: "functional", Exclusive: false, Fn: TestDriver_DRCP_ClassAutoGen},
 	{Name: "TestDriver_DRCP_ClassTag", Categories: "functional", Exclusive: false, Fn: TestDriver_DRCP_ClassTag},
 	{Name: "TestDriver_DRCP_Implicit", Categories: "functional", Exclusive: false, Fn: TestDriver_DRCP_Implicit},
 	{Name: "TestDriver_DRCP_Explicit", Categories: "functional", Exclusive: false, Fn: TestDriver_DRCP_Explicit},
+	{Name: "TestDriver_DRCP_Boundaries", Categories: "functional", Exclusive: false, Fn: TestDriver_DRCP_Boundaries},
+	{Name: "TestDriver_Table_EmptyStringSelect", Categories: "functional", Exclusive: false, Fn: TestDriver_Table_EmptyStringSelect},
 }
 
 func TestCategoryExecutor(t *testing.T) {
