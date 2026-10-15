@@ -377,6 +377,24 @@ func parseTimeZone(timezone string) (int, int, error) {
 	return sign * TZH, sign * TZM, nil
 }
 
+// AttachToResidentPool attaches the connection to the DRCP pool
+//  parameter:
+//   - ctx the context to use
+//  returns:
+//    status : attachment status as a bitmask flag.
+//         TagMismatch : the acquired session did not fully match the requested tag.
+//               This is a result status, not necessarily an acquisition failure:
+//         PurityNew :the server can return a new or otherwise acceptable session and still report the mismatch.
+//              the server created a new database session for this acquire instead of reusing the previous one
+//         SessionChanged: SessionChanged tells the client that the server-side database session associated with its DRCP connection
+//                has changed—or may be different on its next checkout—so client state tied to
+//                the prior session must be invalidated. In particular, the server source describes
+//                clearing the client’s statement cache to avoid using stale cursors.
+//         StmtCacheDestroy : when paired with SESSGET_SESSION_CHANGED,
+//                it tells OCI to purge the statement cache and discard cached cursor IDs
+//                because they belong to the prior session
+
+// error : if detach failed can be also DRCPNotEnabled or DRCPInvalidState
 func (c *connection) AttachToResidentPool(ctx context.Context) (driverCommon.UB4, error) {
 	_l := c._logger.With("DRCP", "attachToDRCPool")
 	_l.Debug("attaching to DRCP")
@@ -444,7 +462,7 @@ func (c *connection) AttachToResidentPool(ctx context.Context) (driverCommon.UB4
 				_l.Fine("TTIRPA received")
 				_l.Fine("ttiOCSessgetRpa/flags",
 					"sessgetTagMismatch", rpa.sessgetFlags&sessgetTagMismatch > 0,
-					"sessgetPurityNew", rpa.sessgetFlags&sessgetTagMismatch > 0,
+					"sessgetPurityNew", rpa.sessgetFlags&sessgetPurityNew > 0,
 					"sessgetSessionChanged", rpa.sessgetFlags&sessgetSessionChanged > 0,
 					"sessgetStmtCacheDestroy", rpa.sessgetFlags&sessgetStmtCacheDestroy > 0)
 			}
@@ -471,6 +489,13 @@ func (c *connection) AttachToResidentPool(ctx context.Context) (driverCommon.UB4
 	}
 
 }
+
+// DetachFromResidentPool detaches the connection from the DRCP pool
+//
+//	parameter:
+//	 - ctx the context to use
+//	returns:
+//	  error : if detach failed can be also DRCPNotEnabled or DRCPInvalidState
 func (c *connection) DetachFromResidentPool(ctx context.Context) error {
 	c._logger.Info("releasing from DRCP")
 	if c._drcpState == _drcpDisabled {
