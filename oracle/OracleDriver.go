@@ -228,6 +228,11 @@ func (drv *Driver) openConnector(dsn string) (driver.Connector, error) {
 		return nil, common.NewOracleError(oracleErrors.NamingDSNInvalid, validateErr, dsn)
 	}
 
+	newConf, err := oracleconfig.HandleDsn(connectDescriptor)
+	if common.Odl.Enabled(common.BackgroundContext, slog.LevelDebug) {
+		common.Odl.Debug("new connector created", "configuration", newConf)
+	}
+
 	// let network layer parse it now.
 	// build again a Data Source Name that network layer can understand
 	// TODO: make network layer use the same and do not parse again.

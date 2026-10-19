@@ -97,6 +97,19 @@ func TestDriver_Functional_SelectDual(t *testing.T) {
 	}
 }
 
+func TestDriver_Functional_DSN(t *testing.T) {
+	t.Parallel()
+
+	db, err := sql.Open("oracledb", "tcp://127.0.0.1:1521/free")
+    if err != nil {
+	     t.Fatalf("failed to open connection: %v", err)
+	}
+	db.Ping()
+	db.Close()
+}
+
+
+
 // TestDriver_Functional_NetworkCompression verifies Oracle Net compression
 // through the public OracleDriverConfig.ConnectionProperties API.
 //
