@@ -48,6 +48,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -282,19 +283,31 @@ var Odl = OracleLogger{
 	sensitiveEnabled: false,
 }
 
-// keep track if InitLoggingWithConfig has been called once.
-var ready atomic.Bool
+var ready sync.Mutex
 var currentLogCloser io.Closer
 
+// InitLoggingAlreadyCalled. InitLoggingWithConfig is called in two ways.
+//  - by driver user using ApplyLoggingConfig
+//  - by the driver itself in Once function in connector builder.
+// the default configuration must be done the first time we create a connector
+// this must be done only once. This is done by this boolean
+var InitLoggingAlreadyCalled atomic.Bool
+
+// InitLoggingWithConfig initialize the logging configuration.
+// Parameter:
+//   config the new logging configuration.
 func InitLoggingWithConfig(config LoggingConfig) {
-	if config == nil {
-		if !ready.CompareAndSwap(false, true) {
-			return
-		}
+
+	if !InitLoggingAlreadyCalled.CompareAndSwap(false, true) {
+		// This flag tells us that we entered here already.
+		// That means that self logging initialization done by the
+		// driver has already been done. Or that a user called  ApplyLoggingConfig
 		return
 	}
 
-	ready.Store(true)
+	// protect currentLogCloser
+	ready.Lock()
+	defer ready.Unlock()
 
 	config.AssignFromFlags()
 	config.AssignFromEnv()
@@ -308,6 +321,7 @@ func InitLoggingWithConfig(config LoggingConfig) {
 	Odl.sensitiveEnabled = false
 
 	if strings.EqualFold(config.GetDestination(), "NULL") {
+		Odl.Logger = *slog.New(slog.DiscardHandler)
 		return
 	}
 
