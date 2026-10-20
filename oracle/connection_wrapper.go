@@ -85,22 +85,48 @@ func NewConnectionWrapper(connection *sql.Conn) (*connectionWrapper, error) {
 type DRCPAttachmentStatus int
 
 const (
-	// TagMismatch the acquired session did not fully match the requested tag.
+	// tagMismatch the acquired session did not fully match the requested tag.
 	//   This is a result status, not necessarily an acquisition failure:
 	//   the server can return a new or otherwise acceptable session and still report the mismatch.
-	TagMismatch = 0x00000001
-	// PurityNew the server created a new database session for this acquire instead of reusing the previous one
-	PurityNew = 0x00000002
-	// SessionChanged tells the client that the server-side database session associated with its DRCP connection
+	tagMismatch = 0x00000001
+	// purityNew the server created a new database session for this acquire instead of reusing the previous one
+	purityNew = 0x00000002
+	// sessionChanged tells the client that the server-side database session associated with its DRCP connection
 	//   has changed—or may be different on its next checkout—so client state tied to
 	//  the prior session must be invalidated. In particular, the server source describes
 	//  clearing the client’s statement cache to avoid using stale cursors.
-	SessionChanged = 0x00000004
-	// StmtCacheDestroy when paired with SESSGET_SESSION_CHANGED,
+	sessionChanged = 0x00000004
+	// stmtCacheDestroy when paired with SESSGET_SESSION_CHANGED,
 	//   it tells OCI to purge the statement cache and discard cached cursor IDs
 	//   because they belong to the prior session
-	StmtCacheDestroy = 0x00000008
+	stmtCacheDestroy = 0x00000008
 )
+
+// IsTagMismatch reports whether the acquired DRCP session did not fully match
+// the requested tag. A tag mismatch does not necessarily mean attachment failed.
+func (s DRCPAttachmentStatus) IsTagMismatch() bool {
+	return (s & tagMismatch) > 0
+}
+
+// IsSessionChanged reports whether the database session associated with the
+// DRCP connection changed. Client-side state associated with the prior session
+// may need to be invalidated.
+func (s DRCPAttachmentStatus) IsSessionChanged() bool {
+	return (s & sessionChanged) > 0
+}
+
+// IsPurityNew reports whether DRCP created a new database session instead of
+// reusing an existing session.
+func (s DRCPAttachmentStatus) IsPurityNew() bool {
+	return (s & purityNew) > 0
+}
+
+// IsStmtCacheDestroy reports whether DRCP indicates that the statement cache
+// should be purged. When this status is set with IsSessionChanged, cached
+// cursor IDs belong to the prior session and should be discarded.
+func (s DRCPAttachmentStatus) IsStmtCacheDestroy() bool {
+	return (s & stmtCacheDestroy) > 0
+}
 
 func (c *connectionWrapper) AttachToDrcpPool(ctx context.Context) (DRCPAttachmentStatus, error) {
 	var status DRCPAttachmentStatus = 0

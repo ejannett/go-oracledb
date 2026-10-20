@@ -232,9 +232,23 @@ func (drv *Driver) openConnector(dsn string) (driver.Connector, error) {
 	// build again a Data Source Name that network layer can understand
 	// TODO: make network layer use the same and do not parse again.
 	// TODO : cleanup handle of serverType
+
+	// add ":pooled" if needed.
+	// TODO review how DNS vs configuration is handled.
+	if confToUse.ConnectionProperties.ServerType == common.ServerTypePooled {
+		if !strings.HasPrefix(confToUse.ConnectDescriptor, "(") &&
+			!strings.HasSuffix(confToUse.ConnectDescriptor, ")") {
+			// ez connect case. otherwise let naming module handle this
+			if !strings.HasSuffix(confToUse.ConnectDescriptor, ":pooled") {
+				confToUse.ConnectDescriptor = fmt.Sprintf("%s:pooled",
+					confToUse.ConnectDescriptor)
+			}
+		}
+	}
+
 	var parsed *naming.ParsedConfig
 	var err error
-	parsed, err = naming.ParseDSNString(fmt.Sprintf("%s?%s", connectDescriptor, confToUse.ToNSConnectionParameters()))
+	parsed, err = naming.ParseDSNString(fmt.Sprintf("%s?%s", confToUse.ConnectDescriptor, confToUse.ToNSConnectionParameters()))
 	if err != nil {
 		common.Odl.Debug("Failed  to parse DNS", "err", err)
 		return nil, err
