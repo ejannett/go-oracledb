@@ -128,6 +128,12 @@ func (s DRCPAttachmentStatus) IsStmtCacheDestroy() bool {
 	return (s & stmtCacheDestroy) > 0
 }
 
+// AttachToDrcpPool attaches the connection to its configured DRCP pool,
+// using ctx for the operation. The returned status describes the attachment
+// outcome, including tag mismatch and session changes.
+//
+// It returns an error if DRCP is disabled, implicit pooling is enabled,
+// the connection is already attached, or attachment fails.
 func (c *connectionWrapper) AttachToDrcpPool(ctx context.Context) (DRCPAttachmentStatus, error) {
 	var status DRCPAttachmentStatus = 0
 	error := c.connection.Raw(func(c any) error {
@@ -138,11 +144,27 @@ func (c *connectionWrapper) AttachToDrcpPool(ctx context.Context) (DRCPAttachmen
 	})
 	return status, error
 }
-func (c *connectionWrapper) DetachFromDrcpPool(ctx context.Context) error {
 
+// DetachFromDrcpPool releases the attached connection to the DRCP pool,
+// returns an error if DRCP is disabled,
+// the connection is already detached, or release fails.
+func (c *connectionWrapper) DetachFromDrcpPool(ctx context.Context) error {
 	return c.connection.Raw(func(c any) error {
 		oc, _ := c.(driverCommon.DRCPUser)
 		return oc.DetachFromResidentPool(ctx)
 	})
 
+}
+
+// IsAttached reports whether the connection is attached to a DRCP session.
+// It returns true if the underlying connection is attached false otherwise.
+func (c *connectionWrapper) IsAttached() bool {
+	var attachmentStatus bool = false
+	c.connection.Raw(func(c any) error {
+		oc, _ := c.(driverCommon.DRCPUser)
+		b := oc.IsAttachedToResidentPool()
+		attachmentStatus = b
+		return nil
+	})
+	return attachmentStatus
 }

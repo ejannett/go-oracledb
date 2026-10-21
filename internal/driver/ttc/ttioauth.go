@@ -409,9 +409,7 @@ func (o *oAuth) prepareForOAUTH(luser driverCommon.B1Array,
 	o.setVSessionKeyValsForOAUTH()
 	o.setAlterSessionKeyValsForOAUTH()
 	o.setDriverIdentityKeyValsForOAUTH()
-	if len(o.connectionClass) > 0 {
-		o.setDRCPKeyValsForOAUTH()
-	}
+	o.setDRCPKeyValsForOAUTH()
 	return nil
 }
 
@@ -523,7 +521,10 @@ var _drcpMultiPropTagKey = driverCommon.StringToB1Array(AuthKpplIsMultiPropTag)
 var _drcpFixUpCBKey = driverCommon.StringToB1Array(AuthKpplFixUpCB)
 
 func (o *oAuth) setDRCPKeyValsForOAUTH() {
-	o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpClassNameKey, Value: o.connectionClass})
+	if len(o.connectionClass) > 0 {
+		o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpClassNameKey, Value: o.connectionClass})
+	}
+
 	o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpPurityKey, Value: o.connectionPurity})
 	if len(o.connectionTagName) > 0 {
 		o.keyValList.PushBack(&driverCommon.KeyValue{Key: _drcpTagNameKey, Value: o.connectionTagName})

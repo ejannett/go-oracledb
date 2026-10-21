@@ -157,7 +157,14 @@ Returns:
 - driver.Stmt: Prepared statement bound to this connection and query.
 - error: Non-nil if the connection is closed/invalid.
 */
-func (c *connection) PrepareContext(_ context.Context, query string) (driver.Stmt, error) {
+func (c *connection) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
+	if c._drcpState == _drcpExplicitPooling && c._drcpConnectionState == _drcpConnectionStateDetached {
+		_, err := c.AttachToResidentPool(ctx)
+		if err != nil {
+			c._logger.Warn("Connection.QueryContext: failed to attach to DRCP", "error", err)
+			return nil, c.shelf.LocalizeError(err)
+		}
+	}
 	c._logger.Fine("Connection.PrepareContext: creating statement...")
 	stmt, err := newStatement(c.shelf, c.sessCtx, query)
 	if err != nil {
@@ -169,6 +176,13 @@ func (c *connection) PrepareContext(_ context.Context, query string) (driver.Stm
 // ExecContext implements driver.ExecerContext.
 // It creates a TTC Statement and delegates the execution.
 func (c *connection) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	if c._drcpState == _drcpExplicitPooling && c._drcpConnectionState == _drcpConnectionStateDetached {
+		_, err := c.AttachToResidentPool(ctx)
+		if err != nil {
+			c._logger.Warn("Connection.QueryContext: failed to attach to DRCP", "error", err)
+			return nil, c.shelf.LocalizeError(err)
+		}
+	}
 	c._logger.Fine("Connection.ExecContext: creating statement...")
 	stmt, err := newStatement(c.shelf, c.sessCtx, query)
 	if err != nil {
@@ -187,6 +201,14 @@ func (c *connection) ExecContext(ctx context.Context, query string, args []drive
 // QueryContext implements driver.QueryerContext.
 // It creates a TTC Statement and delegates the query.
 func (c *connection) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	if c._drcpState == _drcpExplicitPooling && c._drcpConnectionState == _drcpConnectionStateDetached {
+		_, err := c.AttachToResidentPool(ctx)
+		if err != nil {
+			c._logger.Warn("Connection.QueryContext: failed to attach to DRCP", "error", err)
+			return nil, c.shelf.LocalizeError(err)
+		}
+	}
+	c._logger.Fine("Connection.QueryContext: creating statement...")
 	stmt, err := newStatement(c.shelf, c.sessCtx, query)
 	if err != nil {
 		return nil, c.shelf.LocalizeError(err)
@@ -397,11 +419,12 @@ func parseTimeZone(timezone string) (int, int, error) {
 // error : if detach failed can be also DRCPNotEnabled or DRCPInvalidState
 func (c *connection) AttachToResidentPool(ctx context.Context) (driverCommon.UB4, error) {
 	_l := c._logger.With("DRCP", "attachToDRCPool")
-	_l.Debug("attaching to DRCP")
+	_l.Info("attaching to DRCP")
 	if c._drcpState == _drcpDisabled {
 		_l.Debug("attach called but drcp not enabled")
 		return 0, common.NewOracleError(oracleErrors.DRCPNotEnabled, nil)
 	}
+
 	if c._drcpState == _drcpImplicitPooling {
 		_l.Debug("attach called but implicit pooling is in place ")
 		return 0, common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpState)
@@ -414,6 +437,16 @@ func (c *connection) AttachToResidentPool(ctx context.Context) (driverCommon.UB4
 		_l.Debug("attach called but implicit pooling is in place")
 		return 0, common.NewOracleError(oracleErrors.DRCPInvalidState, nil, c._drcpConnectionState)
 	}
+
+	if len(c.shelf.GetDriverConfig().ConnectionProperties.Drcp.Tag) == 0 {
+		// when tags are not used there is no use of sending ttiOCSessget
+		// as we do not need any outcome from it.
+		_l.Fine("No tag set, skip send of ttiOCSessget")
+		// assume implicit attach from server
+		c._drcpConnectionState = _drcpConnectionStateAttached
+		return 0, nil
+	}
+
 	function, err := c.shelf.Shelf.GetMessageFactory().GetMessageForFunction(TTIFUN, ocsessget)
 	if err != nil {
 		return 0, err
@@ -488,6 +521,11 @@ func (c *connection) AttachToResidentPool(ctx context.Context) (driverCommon.UB4
 		}
 	}
 
+}
+
+func (c *connection) IsAttachedToResidentPool() bool {
+	return c._drcpState != _drcpDisabled &&
+		c._drcpConnectionState == _drcpConnectionStateAttached
 }
 
 // DetachFromResidentPool detaches the connection from the DRCP pool

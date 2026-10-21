@@ -73,7 +73,7 @@ const (
 // Returns: true if the connection is valid otherwise false
 func (c *connection) IsValid() bool {
 
-	c._logger.Debug("IsValid() called", "cnx", (*c).String())
+	c._logger.Info("IsValid() called", "cnx", (*c).String())
 	// Check if inband notification has been received.
 	c._isValid = c._isValid && !c.ns.CheckInbandNotification()
 	if !c._isValid {
@@ -91,7 +91,6 @@ func (c *connection) IsValid() bool {
 	}
 
 	if c._drcpState == _drcpExplicitPooling && c._drcpConnectionState == _drcpConnectionStateAttached {
-		c._logger.Debug("Detaching from DRCP")
 		ctx, cancel := context.WithTimeout(context.Background(), _pingTimeout)
 		defer cancel()
 		err := c.DetachFromResidentPool(ctx)

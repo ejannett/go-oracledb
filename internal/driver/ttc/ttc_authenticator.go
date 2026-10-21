@@ -40,8 +40,6 @@ package ttc
 
 import (
 	"context"
-	"crypto/sha256"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -280,19 +278,11 @@ func (pa *passwordAuthenticator) _doOAuth(ctx context.Context) error {
 	oauthMsg.(*oAuth).setBUseO5Logon(sessionProperties.ContainsKey(authVFRData))
 
 	if shelf.GetDriverConfig().ConnectionProperties.ServerType == common.ServerTypePooled {
-		drcpClassName := shelf.GetDriverConfig().ConnectionProperties.Drcp.Class
-		if len(drcpClassName) == 0 {
-			h := sha256.New()
-			_, _ = h.Write([]byte(shelf.GetDriverConfig().ConnectDescriptor))
-
-			uuid := driverCommon.GenRandomString(4)
-			drcpClassName = fmt.Sprintf("%s_%x_%s",
-				shelf.GetDriverConfig().Credentials.User, h.Sum(nil), uuid)
-			common.Odl.Fine(fmt.Sprintf("No DRCP class name specified, using [%s]",
-				drcpClassName))
+		drcpClassName := shelf.GetDriverConfig().ConnectionProperties.Drcp.ClassName
+		if len(drcpClassName) != 0 {
+			oauthMsg.(*oAuth).setDrcpConnectionClass(
+				driverCommon.B1Array(drcpClassName))
 		}
-		oauthMsg.(*oAuth).setDrcpConnectionClass(
-			driverCommon.B1Array(drcpClassName))
 		if clientProperties.ContainsKey(AuthKpplPurity) {
 			oauthMsg.(*oAuth).setDrcpPurity(
 				driverCommon.B1Array(shelf.GetDriverConfig().ConnectionProperties.Drcp.Purity))

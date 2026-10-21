@@ -115,6 +115,7 @@ var parameterDestinations = map[string]string{
 	"SERVICE_TAG":           "CONNECT_DATA",
 	"CONNECTION_ID_PREFIX":  "CONNECT_DATA",
 	"POOL_BOUNDARY":         "CONNECT_DATA",
+	"POOL_NAME":             "CONNECT_DATA",
 
 	// SECURITY parameters
 	"SSL_SERVER_CERT_DN":  "SECURITY",

@@ -49,23 +49,23 @@ import (
 // - Flushes piggyback messages
 func (c *connection) ResetSession(ctx context.Context) error {
 
-	c._logger.Debug("ResetSession called", "cnx", (*c).String())
+	c._logger.Info("ResetSession called", "cnx", (*c).String())
 
 	if c._isClosed || !c._isValid {
 		return driver.ErrBadConn
 	}
 
-	if c._drcpState == _drcpExplicitPooling && c._drcpConnectionState == _drcpConnectionStateDetached {
-		c._logger.Debug("Attaching to DRCP")
-		flag, err := c.AttachToResidentPool(ctx)
-		if err != nil {
-			c._logger.Debug("Failed to attach to the DRCP pool", "error", err)
-			c._isValid = false
-			return driver.ErrBadConn
-		}
-
-		c._logger.Debug("Successfully attached to the DRCP pool", "flag", flag)
-	}
+	//if c._drcpState == _drcpExplicitPooling && c._drcpConnectionState == _drcpConnectionStateDetached {
+	//	c._logger.Debug("Attaching to DRCP")
+	//	flag, err := c.AttachToResidentPool(ctx)
+	//	if err != nil {
+	//		c._logger.Debug("Failed to attach to the DRCP pool", "error", err)
+	//		c._isValid = false
+	//		return driver.ErrBadConn
+	//	}
+	//
+	//	c._logger.Debug("Successfully attached to the DRCP pool", "flag", flag)
+	//}
 
 	statements := c.shelf.GetStatements(true)
 	c._logger.Debug("closing statements", "count", len(statements))

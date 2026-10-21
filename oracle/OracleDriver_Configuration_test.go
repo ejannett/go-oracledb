@@ -411,7 +411,7 @@ func TestDriver_OpenConnectorReturnsInvalidDSNParameterError(t *testing.T) {
 func TestDriver_OpenConnectorForDRCP(t *testing.T) {
 	c := NewOracleDriverConfig()
 	c.ConnectionProperties.ServerType = common.ServerTypePooled
-	c.ConnectionProperties.Drcp.Class = "test_class"
+	c.ConnectionProperties.Drcp.ClassName = "test_class"
 	c.ConnectionProperties.Drcp.Purity = common.DrcpPuritySelf
 	c.ConnectionProperties.Drcp.Boundary = common.DrcpBoundaryStatement
 	c.ConnectDescriptor = "user/pass@localhost:1521/freepdb1"

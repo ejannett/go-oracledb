@@ -200,6 +200,7 @@ type ConnectData struct {
 	PoolConnectionClass string
 	PoolPurity          string
 	PoolBoundary        string
+	PoolName            string
 }
 
 // Security with SSL/TLS security parameters
@@ -533,6 +534,8 @@ func extractConnectData(node *Node) (*ConnectData, error) {
 			connectData.PoolPurity = child.Value
 		case "POOL_BOUNDARY":
 			connectData.PoolBoundary = child.Value
+		case "POOL_NAME":
+			connectData.PoolName = child.Value
 		default:
 			return nil, common.NewOracleError(oracleErrors.NamingContextError, nil, child.Name, "CONNECT_DATA")
 		}

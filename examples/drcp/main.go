@@ -53,14 +53,16 @@ import (
 // Sample application that uses DRCP connections.
 func main() {
 
-	connectDescriptor := os.Getenv("ORACLE_DSN")
+	//connectDescriptor := os.Getenv("ORACLE_DSN")
+	//connectDescriptor := "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=freepdb1)(SERVER=POOLED)))"
+	connectDescriptor := "tcp://127.0.0.1:1521/freepdb1"
 	user := os.Getenv("ORACLE_USER")
 	password := os.Getenv("ORACLE_PASSWORD")
 	if connectDescriptor == "" || user == "" || password == "" {
 		log.Fatal("set ORACLE_DSN, ORACLE_USER, and ORACLE_PASSWORD")
 	}
 
-	// Build an explicit driver configuration for NewOracleConnector.
+	// Build  configuration for NewOracleConnector.
 	cfg := oracle.NewOracleDriverConfig()
 	cfg.ConnectDescriptor = connectDescriptor
 	cfg.Credentials.User = user
@@ -70,7 +72,7 @@ func main() {
 	//  Enable DRCP
 	cfg.ConnectionProperties.ServerType = common.ServerTypePooled
 	//  Sets the connection class
-	cfg.ConnectionProperties.Drcp.Class = "MyDRCPClass"
+	cfg.ConnectionProperties.Drcp.ClassName = "Sales"
 
 	// Runs the basic example
 	simpleRun(cfg)
@@ -146,11 +148,20 @@ func simpleRun(config *oracleconfig.OracleDriverConfig) {
 
 	// Creates the connection pool
 	db := sql.OpenDB(connector)
-	defer db.Close()
+	defer func() {
+		fmt.Printf("closing database pool\n")
+		db.Close()
+	}()
 
+	fmt.Printf("first QueryRowContext()\n")
 	// Run a minimal query using the established connection pool.
 	//  All connections used by DB Apis will be attached and detached to and form the remote DRCP pool.
 	var currentUser string
+	if err := db.QueryRowContext(context.Background(),
+		"select user from dual").Scan(&currentUser); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("second QueryRowContext()\n")
 	if err := db.QueryRowContext(context.Background(),
 		"select user from dual").Scan(&currentUser); err != nil {
 		log.Fatal(err)

@@ -103,4 +103,8 @@ type DRCPUser interface {
 	// DetachFromResidentPool Detach the connection from the remote pool.
 	// Errors: OGD-00180 / OGD-00181
 	DetachFromResidentPool(ctx context.Context) error
+
+	// IsAttachedToResidentPool checks that current connection is attached
+	// return true if attached, false otherwise.
+	IsAttachedToResidentPool() bool
 }
