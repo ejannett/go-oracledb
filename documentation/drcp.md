@@ -4,7 +4,9 @@
 
 API for DRCP support in the Go driver.
 
-Reference: - [Oracle Database Resident Connection Pooling](https://www.oracle.com/a/tech/docs/drcp-technical-brief.pdf)
+Reference: 
+- [Using Database Resident Connection Pool](https://docs.oracle.com/en/database/oracle/oracle-database/26/adfns/performance-and-scalability.html#GUID-0B0DC596-17FF-4EEE-BAA1-9F428710C1AC)
+- [Oracle Database Resident Connection Pooling](https://www.oracle.com/a/tech/docs/drcp-technical-brief.pdf)
 
 DRCP (Database Resident Connection Pooling) is a connection pool built into Oracle Database.
 It keeps a shared pool of database server processes and sessions that applications can use temporarily, then return to the pool when finished.

@@ -175,5 +175,5 @@ func simpleRun(config *oracleconfig.OracleDriverConfig) {
 
 	// that will detach the connection from DRCP pool
 	err = cnx.Close()
-	
+
 }
