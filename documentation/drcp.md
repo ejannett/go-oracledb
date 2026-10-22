@@ -28,31 +28,26 @@ DRCP relies on a few connection parameters. These parameters are available as pa
 type DatabaseResidentConnectionPooling struct {
  ClassName         string // sets the DRCP connection class, this is optional when not specified default SYS.SHARED is used
  Purity            string // sets the DRCP purity
- Boundary          string // sets the DRCP boundary
- Tag               string // sets the tag for pooled DRCP connection
- UseMultipleTag    bool   // Does the pooled DRCP connection use multiple tags
- FixUpCallBackName string // Name of the PL/SQL callback used to transform a session checked out from the pool to the desired state requested by the application
  PoolName          string // Name of the DRCP pool to be used.
 }
 ```
+
+
+**PoolName:** The name of the DRCP pool to be used. The default pool (SYS_DEFAULT_CONNECTION_POOL) is used when no pool name is specified.
 
 **ClassName:** The DRCP connection class. The connection class defines a logical name for the type of connection an application wants to use and share across multiple application processes or other applications.
 
 **Purity:** Session purity. This attribute controls the reusability of pooled sessions in DRCP. It tells DRCP whether to provide a fresh session (NEW) or allow reuse of an existing pooled session (SELF).
 Reusing a session can be more efficient, but applications should account for its session state.
 
-**Boundary:** Implicit connection pooling. There are two possible values:
+Note: The DRCP specification includes the following parameters, which have no usage in the go driver. As such, they are not supported.
 
-- `STATEMENT` – DRCP performs an “implicit release” when the database session is stateless.
-- `TRANSACTION` – DRCP performs an “implicit release” at commit or rollback, or when the database session is stateless.
+_Boundary_:  This activates implicit attachment. The driver automatically attach and detach
+connection
 
-**Tag:** Free-form tag for pooled connections.
+_Tag_, _UseMultipleTag_ and _FixUpCallBackName_ The use of tagging makes sense only
+when this is coupled with a client-side pooling tagging mechanism. The sql.DB pool do not have tagging capability.
 
-**UseMultipleTag:** Indicates whether the client uses multiple tags.
-
-**FixUpCallBackName:** Name of the PL/SQL callback used to transform a session checked out from the pool
-
-**PoolName:** The name of the DRCP pool to be used. The default pool (SYS_DEFAULT_CONNECTION_POOL) is used when no pool name is specified.
 
 ### Server Type Configuration
 
