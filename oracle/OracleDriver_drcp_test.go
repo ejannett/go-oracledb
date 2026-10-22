@@ -285,8 +285,7 @@ func TestDriver_DRCP_Explicit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Can't detach from DRCP: %v", err)
 	}
-	// Have to wait a little bit , be sure that remote view is updated
-	//time.Sleep(1 * time.Second)
+
 	if isDrcpAttached(t, config, config.ConnectionProperties.Drcp.ClassName, "", "") {
 		t.Fatalf("Should be detached now")
 	}
@@ -296,7 +295,6 @@ func TestDriver_DRCP_Explicit(t *testing.T) {
 		t.Fatalf("Failed to close connection: %v", err)
 	}
 
-	//time.Sleep(2 * time.Second)
 	if isDrcpAttached(t, config, config.ConnectionProperties.Drcp.ClassName, "", "") {
 		t.Fatalf("Should be detached now")
 	}

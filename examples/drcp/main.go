@@ -53,9 +53,7 @@ import (
 // Sample application that uses DRCP connections.
 func main() {
 
-	//connectDescriptor := os.Getenv("ORACLE_DSN")
-	//connectDescriptor := "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=freepdb1)(SERVER=POOLED)))"
-	connectDescriptor := "tcp://127.0.0.1:1521/freepdb1"
+	connectDescriptor := os.Getenv("ORACLE_DSN")
 	user := os.Getenv("ORACLE_USER")
 	password := os.Getenv("ORACLE_PASSWORD")
 	if connectDescriptor == "" || user == "" || password == "" {
@@ -86,7 +84,7 @@ func simpleExplicit(cfg *oracleconfig.OracleDriverConfig) {
 	//  Uses tagging.
 	cfg.ConnectionProperties.Drcp.Tag = "MyTag"
 
-	// sql.OpenDB accepts the connector returned by the driver API.
+	// Create the connector from user configuration
 	connector, err := oracle.NewOracleConnector(cfg)
 	if err != nil {
 		log.Fatal(err)
@@ -102,15 +100,6 @@ func simpleExplicit(cfg *oracleconfig.OracleDriverConfig) {
 	}
 	defer conn.Close()
 
-	// At this stage the connection is attached.
-
-	// Run a minimal query using the established connection pool.
-	//  All connections used by DB Apis will be attached and detached to and form the remote DRCP pool.
-	var currentUser string
-	if err := db.QueryRowContext(context.Background(),
-		"select user from dual").Scan(&currentUser); err != nil {
-		log.Fatal(err)
-	}
 
 	// Grab a connection wrapper to use the DRCP APIs
 	wrapper, err := oracle.NewConnectionWrapper(conn)
@@ -118,15 +107,23 @@ func simpleExplicit(cfg *oracleconfig.OracleDriverConfig) {
 		log.Fatal(err)
 	}
 
-	// Explicitly asked for attachment
-	attachStatus, err := wrapper.AttachToDrcpPool(context.Background())
-	if err != nil {
-		log.Fatal(err)
+	// Check if the connection is actually attached.
+	attached := wrapper.IsAttached()
+
+	if !attached {
+		// Explicitly asked for attachment
+		attachStatus, err := wrapper.AttachToDrcpPool(context.Background())
+		if err != nil {
+			log.Fatal(err)
+		}
+		if attachStatus.IsTagMismatch() {
+			// The remote DRCP pool was not able to fulfill our request for "MyTag"
+			// ...
+		}
 	}
-	if attachStatus.IsTagMismatch() {
-		// The remote DRCP pool was not able to fulfill our request for "MyTag"
-		// ...
-	}
+
+	// At this stage the connection is attached and can be used for SQL operations.
+	//...
 
 	// Explicitly asked for connection detachment
 	err = wrapper.DetachFromDrcpPool(context.Background())
@@ -153,19 +150,30 @@ func simpleRun(config *oracleconfig.OracleDriverConfig) {
 		db.Close()
 	}()
 
-	fmt.Printf("first QueryRowContext()\n")
 	// Run a minimal query using the established connection pool.
-	//  All connections used by DB Apis will be attached and detached to and form the remote DRCP pool.
+	//  All connections used by DB Apis will be automatically attached and detached to and form the remote DRCP pool.
 	var currentUser string
 	if err := db.QueryRowContext(context.Background(),
 		"select user from dual").Scan(&currentUser); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("second QueryRowContext()\n")
-	if err := db.QueryRowContext(context.Background(),
-		"select user from dual").Scan(&currentUser); err != nil {
+
+	// USe this API to grab a connection out of the pool.
+	cnx, err := db.Conn(context.Background())
+	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Connected to Oracle as %s\n", currentUser)
+	// Because DRCP is enabled the connection will automatically attach to the pool
+	rows, err := cnx.QueryContext(context.Background(), "SELECT 1 FROM DUAL")
+	if err != nil {
+		log.Fatal(err)
+	}
+	// ...
+	rows.Close()
+
+
+	// that will detach the connection from DRCP pool
+	err = cnx.Close()
+	
 }

@@ -4,7 +4,7 @@
 
 API for DRCP support in the Go driver.
 
-Reference: https://www.oracle.com/a/tech/docs/oracle-drcp-technical-brief.pdf
+Reference: - [Oracle Database Resident Connection Pooling](https://www.oracle.com/a/tech/docs/drcp-technical-brief.pdf)
 
 DRCP (Database Resident Connection Pooling) is a connection pool built into Oracle Database.
 It keeps a shared pool of database server processes and sessions that applications can use temporarily, then return to the pool when finished.
@@ -82,8 +82,7 @@ There are two scenarii: when the connection is used directly by the client appli
 
 This is when the connection is handled by the Go connection pool, or when `ExecContext` and `QueryContext` are executed against the `sql.DB` object.
 
-In such situations, the driver attaches and detaches the connection automatically when the connection is respectively borrowed from and returned to the pool.
-When ExecerContext and QueryerContext methods are used on the DB object, the connection lifecycle is transparent to the end user 
+In such situations, the driver attaches the connection automatically when the connection is used and detaches it when it returned to the pool.
 
 #### Explicit Usage
 
@@ -151,9 +150,6 @@ err := connectionWrapper.DetachFromResidentPool()
 
 `OGD-00180` – DRCP is not enabled: an attempt was made to perform an operation that requires DRCP to be enabled.
 
-Example: calling the attach or detach method.
-
 `OGD-00181` – Invalid state: an attempt was made to perform an operation that requires the connection to be attached or detached.
 
-Example: calling `QueryContext` on a detached connection.
 

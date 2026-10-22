@@ -68,4 +68,4 @@ The class and tag values are sample values. Adjust them to suit your application
 
 ## Reference
 
-- [Oracle Database Resident Connection Pooling](https://www.oracle.com/a/tech/docs/drcp-technical-brief.pdf)
+- [DRCP support](../documentation/drcp.md)
