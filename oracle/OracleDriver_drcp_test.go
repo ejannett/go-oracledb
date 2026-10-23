@@ -104,7 +104,7 @@ func TestDriver_DRCP_Basic(t *testing.T) {
 	rows.Close()
 
 	// here we are already attached as going out of th pool attaches us.
-	if !isDrcpAttached(t, config, config.ConnectionProperties.Drcp.ClassName, "", "") {
+	if !isDrcpAttached(t, config, config.ConnectionProperties.Drcp.ClassName, "") {
 		t.Fatalf("Should be attached now")
 	}
 
@@ -116,7 +116,7 @@ func TestDriver_DRCP_Basic(t *testing.T) {
 	}
 
 	time.Sleep(1 * time.Second)
-	if isDrcpAttached(t, config, config.ConnectionProperties.Drcp.ClassName, "", "") {
+	if isDrcpAttached(t, config, config.ConnectionProperties.Drcp.ClassName, "") {
 		t.Fatalf("Should be detached now")
 	}
 
@@ -141,7 +141,6 @@ func TestDriver_DRCP_ClassAutoGen(t *testing.T) {
 	config.Credentials.User = tConf.Credentials.Username
 	config.Credentials.Password = tConf.Credentials.Password
 	config.ConnectionProperties.ServerType = common.ServerTypePooled
-	config.ConnectionProperties.Drcp.Tag = drvCommon.GenRandomString(2)
 
 	config.ConnectDescriptor = tConf.GetConnectionDSN()
 	connector, err := NewOracleConnector(config)
@@ -166,137 +165,8 @@ func TestDriver_DRCP_ClassAutoGen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Can't ping on connection: %v", err)
 	}
-	if !isDrcpAttached(t, config, "SHARED", config.ConnectionProperties.Drcp.Tag, "") {
+	if !isDrcpAttached(t, config, "SHARED", "") {
 		t.Fatalf("Should be attached now")
-	}
-
-}
-
-// TestDriver_DRCP_ClassTag verifies that class tag is indeed set .
-// Expectations: DRCP should work, and class tag should be present in remote DRCP views.
-func TestDriver_DRCP_ClassTag(t *testing.T) {
-	t.Parallel()
-	if TestingConfig == nil {
-		t.Skip("No configuration available")
-	}
-
-	tConf := TestingConfig.Clone()
-	tConf.Database.ServerType = common.ServerTypePooled
-	config := NewOracleDriverConfig()
-	config.Credentials.LogonMode = tConf.Credentials.LogonMode
-	config.Credentials.User = tConf.Credentials.Username
-	config.Credentials.Password = tConf.Credentials.Password
-	config.ConnectionProperties.ServerType = common.ServerTypePooled
-
-	config.ConnectionProperties.Drcp.Tag = drvCommon.GenRandomString(2)
-	config.ConnectionProperties.Drcp.ClassName = "TestDriver_DRCP_ClassTag" + drvCommon.GenRandomString(2)
-
-	config.ConnectDescriptor = tConf.GetConnectionDSN()
-	connector, err := NewOracleConnector(config)
-	if err != nil {
-		t.Fatalf("create connector failed: %v", err)
-	}
-	db := sql.OpenDB(connector)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Errorf("close db: %v", err)
-		}
-	}()
-	db.SetMaxOpenConns(1)
-
-	cnx, err := db.Conn(context.Background())
-	if err != nil {
-		t.Fatalf("get dedicated sql connection failed: %v", err)
-	}
-	defer cnx.Close()
-
-	if !isDrcpAttached(t, config,
-		config.ConnectionProperties.Drcp.ClassName,
-		config.ConnectionProperties.Drcp.Tag, "") {
-		t.Errorf("tag not found in DRCP stats ")
-	}
-}
-
-func TestDriver_DRCP_Boundaries(t *testing.T) {
-	t.Parallel()
-	t.Skipf("Implement me")
-}
-
-func TestDriver_DRCP_Explicit(t *testing.T) {
-	t.Parallel()
-	if TestingConfig == nil {
-		t.Skip("No configuration available")
-	}
-
-	tConf := TestingConfig.Clone()
-	tConf.Database.ServerType = common.ServerTypePooled
-
-	config := NewOracleDriverConfig()
-
-	config.Credentials.LogonMode = tConf.Credentials.LogonMode
-
-	config.Credentials.User = tConf.Credentials.Username
-	config.Credentials.Password = tConf.Credentials.Password
-
-	config.ConnectionProperties.ServerType = common.ServerTypePooled
-	config.ConnectionProperties.Drcp.ClassName = "TestDriver_DRCP_Explicit" + drvCommon.GenRandomString(2)
-
-	config.ConnectDescriptor = tConf.GetConnectionDSN()
-
-	connector, err := NewOracleConnector(config)
-	if err != nil {
-		t.Fatalf("create connector failed: %v", err)
-	}
-
-	db := sql.OpenDB(connector)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Errorf("close db: %v", err)
-		}
-	}()
-	db.SetMaxOpenConns(1)
-
-	cnx, err := db.Conn(context.Background())
-	if err != nil {
-		t.Fatalf("get dedicated sql connection failed: %v", err)
-	}
-
-	oracleConnection, err := NewConnectionWrapper(cnx)
-	if err != nil {
-		t.Fatalf("create oracle connection wrapper failed: %v", err)
-	}
-
-	isAttached := oracleConnection.IsAttached()
-	t.Logf("isAttached: %v", isAttached)
-	if !isAttached {
-		// depending on either the pool creates this connection or not
-		// we may be attached or not
-		_, err = oracleConnection.AttachToDrcpPool(context.Background())
-		if err != nil {
-			t.Fatalf("Can't attach to DRCP: %v", err)
-		}
-	}
-	if !isDrcpAttached(t, config, config.ConnectionProperties.Drcp.ClassName, "", "") {
-		t.Fatalf("Should be attached now")
-	}
-
-	t.Logf("Detaching from pool")
-	err = oracleConnection.DetachFromDrcpPool(context.Background())
-	if err != nil {
-		t.Fatalf("Can't detach from DRCP: %v", err)
-	}
-
-	if isDrcpAttached(t, config, config.ConnectionProperties.Drcp.ClassName, "", "") {
-		t.Fatalf("Should be detached now")
-	}
-
-	err = cnx.Close()
-	if err != nil {
-		t.Fatalf("Failed to close connection: %v", err)
-	}
-
-	if isDrcpAttached(t, config, config.ConnectionProperties.Drcp.ClassName, "", "") {
-		t.Fatalf("Should be detached now")
 	}
 
 }
@@ -312,10 +182,11 @@ func TestDriver_DRCP_Explicit(t *testing.T) {
 // returns:
 //
 //	true if attached, false otherwise.
-func isDrcpAttached(t *testing.T, config *config.OracleDriverConfig, expectedClass string, expectedTag string, expectedPool string) bool {
+func isDrcpAttached(t *testing.T, config *config.OracleDriverConfig, expectedClass string, expectedPool string) bool {
 	t.Helper()
 
 	var attachedClass sql.NullString
+	var poolName sql.NullString
 	var purity sql.NullString
 	var tag sql.NullString
 	var connection_status sql.NullString
@@ -337,15 +208,12 @@ func isDrcpAttached(t *testing.T, config *config.OracleDriverConfig, expectedCla
 		}
 	}()
 
-	t.Logf("isDrcpAttached looking for class=[%s] tag=[%s]", expectedClass, expectedTag)
-	query := `SELECT cclass_name, purity, tag, connection_status
+	t.Logf("isDrcpAttached looking for class=[%s]", expectedClass)
+	query := `SELECT cclass_name, pool_name, purity, tag, connection_status
 		   FROM v$cpool_conn_info
 		  WHERE UPPER(cclass_name) LIKE '%.' || UPPER(:1)`
 	args := []any{expectedClass}
-	if expectedTag != "" {
-		query += ` AND tag = :2`
-		args = append(args, expectedTag)
-	}
+
 	if expectedPool != "" {
 		query += fmt.Sprintf(` AND pool_name = :%d`, len(args)+1)
 		args = append(args, expectedPool)
@@ -363,13 +231,13 @@ func isDrcpAttached(t *testing.T, config *config.OracleDriverConfig, expectedCla
 		t.Fatalf("query v$cpool_conn_info for attached DRCP class %q failed: %v", expectedClass, rows.Err())
 	}
 
-	err = rows.Scan(&attachedClass, &purity, &tag, &connection_status)
+	err = rows.Scan(&attachedClass, &poolName, &purity, &tag, &connection_status)
 	if err != nil {
 		t.Fatalf("scan v$cpool_conn_info for attached DRCP class failed: %v", err)
 	}
 
-	t.Logf("DRCP conn info class %q , purity %q, tag %q, status %q",
-		attachedClass.String, purity.String, tag.String, connection_status.String)
+	t.Logf("DRCP conn info class %q , pool %q , purity %q, tag %q, status %q",
+		attachedClass.String, poolName.String, purity.String, tag.String, connection_status.String)
 
 	if connection_status.String != "ACTIVE" {
 		return false
@@ -397,9 +265,13 @@ func TestDriver_DRCP_PoolName(t *testing.T) {
 	config.Credentials.Password = tConf.Credentials.Password
 
 	config.ConnectionProperties.ServerType = common.ServerTypePooled
-	config.ConnectionProperties.Drcp.PoolName = "TestDriver_DRCP_PoolName"
+	config.ConnectionProperties.Drcp.ClassName = "TestDriver_DRCP_PoolName" + drvCommon.GenRandomString(2)
+	config.ConnectionProperties.Drcp.PoolName = "MYPOOL"
 
-	config.ConnectDescriptor = tConf.GetConnectionDSN()
+	// we cannot rely on tConf.GetConnectionDSN() as it build connect descriptor that ignore what is in the conf
+	//  that would drop the pool name info
+	config.ConnectDescriptor = fmt.Sprintf("tcp://%s:%d/%s?oracle.go.Credentials.logonMode=sysdba",
+		tConf.Database.Host, tConf.Database.Port, tConf.Database.ServiceName)
 	connector, err := NewOracleConnector(config)
 	if err != nil {
 		t.Fatalf("create connector failed: %v", err)
@@ -418,74 +290,14 @@ func TestDriver_DRCP_PoolName(t *testing.T) {
 		t.Fatalf("get dedicated sql connection failed: %v", err)
 	}
 
+	cnx.QueryContext(context.Background(), "SELECT 1 FROM DUAL")
+
 	t.Logf("new connection created [%v]", cnx)
 
 	// here we are already attached as going out of th pool attaches us.
-	if !isDrcpAttached(t, config, config.ConnectionProperties.Drcp.ClassName, "", config.ConnectionProperties.Drcp.PoolName) {
+	if !isDrcpAttached(t, config, config.ConnectionProperties.Drcp.ClassName, config.ConnectionProperties.Drcp.PoolName) {
 		t.Fatalf("Should be attached now")
 	}
 
 	t.Logf("TestDriver_DRCP_PoolName Success")
-}
-
-type attachInfo struct {
-	poolName  string
-	className string
-	id        string
-}
-
-// getAttachmentInfo get all DRCP attachment info
-// parameters:
-//
-//	t testing
-//	db DB object to perform priv selection on stat views
-//
-// returns:
-//
-//	array of attachInfo
-func getAttachmentInfo(t *testing.T, config *config.OracleDriverConfig) []attachInfo {
-	t.Helper()
-
-	infos := make([]attachInfo, 0)
-
-	// conf to be used for request that valid current attachment
-	privConfig := config.Clone()
-	privConfig.ConnectionProperties.ServerType = common.ServerTypeDedicated
-	privConfig.ConnectionProperties.Drcp.ClassName = ""
-
-	privConnector, err := NewOracleConnector(privConfig)
-	if err != nil {
-		t.Fatalf("create priv connector failed: %v", err)
-	}
-
-	privdb := sql.OpenDB(privConnector)
-	defer func() {
-		if err := privdb.Close(); err != nil {
-			t.Errorf("close privdb: %v", err)
-		}
-	}()
-
-	rows, err := privdb.QueryContext(
-		context.Background(),
-		`SELECT POOL_NAME, CCLASS_NAME, CON_ID
-		   FROM v$cpool_cc_stats`)
-	if err != nil {
-		t.Fatalf("query v$cpool_cc_stats failed: %v", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var pName sql.NullString
-		var cName sql.NullString
-		var id sql.NullString
-		if err := rows.Scan(&pName, &cName, &id); err != nil {
-			t.Fatalf("scan failed: %v", err)
-		}
-		infos = append(infos, attachInfo{poolName: pName.String, className: cName.String, id: id.String})
-
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("rows err: %v", err)
-	}
-
-	return infos
 }

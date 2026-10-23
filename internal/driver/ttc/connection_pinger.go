@@ -90,7 +90,7 @@ func (c *connection) IsValid() bool {
 		}
 	}
 
-	if c._drcpState == _drcpExplicitPooling && c._drcpConnectionState == _drcpConnectionStateAttached {
+	if c._drcpState == _drcpEnabled {
 		ctx, cancel := context.WithTimeout(context.Background(), _pingTimeout)
 		defer cancel()
 		err := c.DetachFromResidentPool(ctx)

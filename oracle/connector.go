@@ -126,6 +126,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	var ns driverCommon.NetworkSession
 	var savedErr error                       // last error raised during attempt loop
 	var savedOption *naming.ConnectionOption // last option tried during attempt loop
+	var connectedOption *naming.ConnectionOption
 	isNsConnected := false
 	isConnectionEstablished := false
 
@@ -188,6 +189,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 			isNsConnected = true
 			savedErr = nil
 			savedOption = nil
+			connectedOption = option
 			break
 		}
 		savedErr = err
@@ -208,7 +210,12 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 
 	common.OdlT(sessionUid).Fine("Network session established")
 
-	connInstantiator, err := c.connInstantiatorFactory(sessionUid, c.connectorConfig, ns, c.providerRegistry)
+	// Authentication also sends the connect string to the server. Use the
+	// effective descriptor selected for this connection attempt so parameters
+	// synthesized from EZConnect (such as POOL_NAME) are included there too.
+	connConfig := c.connectorConfig.Clone()
+	connConfig.ConnectDescriptor = connectedOption.ConnectString
+	connInstantiator, err := c.connInstantiatorFactory(sessionUid, connConfig, ns, c.providerRegistry)
 	if err != nil {
 		e := common.NewOracleError(oracleErrors.ConnectFailed, err)
 		return nil, localizationService.LocalizeError(e)

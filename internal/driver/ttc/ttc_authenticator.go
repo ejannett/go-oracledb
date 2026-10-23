@@ -287,10 +287,6 @@ func (pa *passwordAuthenticator) _doOAuth(ctx context.Context) error {
 			oauthMsg.(*oAuth).setDrcpPurity(
 				driverCommon.B1Array(shelf.GetDriverConfig().ConnectionProperties.Drcp.Purity))
 		}
-		if shelf.GetDriverConfig().ConnectionProperties.Drcp.Tag != "" {
-			oauthMsg.(*oAuth).setDrcpTagProps(shelf.GetDriverConfig().ConnectionProperties.Drcp.Tag,
-				shelf.GetDriverConfig().ConnectionProperties.Drcp.UseMultipleTag)
-		}
 	}
 	oauthMsg.(*oAuth).setLogonMode(pa._logonMode)
 	if common.KpzLogonSysdba.Enabled(pa._logonMode) && len(pa._password) == 0 {

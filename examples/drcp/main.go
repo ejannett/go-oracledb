@@ -76,13 +76,13 @@ func main() {
 	simpleRun(cfg)
 
 	// Runs explicit attachment with tagging
-	simpleExplicit(cfg)
+	customPool(cfg)
 }
 
-func simpleExplicit(cfg *oracleconfig.OracleDriverConfig) {
+func customPool(cfg *oracleconfig.OracleDriverConfig) {
 
-	//  Uses tagging.
-	cfg.ConnectionProperties.Drcp.Tag = "MyTag"
+	//  Uses the custom pool.
+	cfg.ConnectionProperties.Drcp.PoolName = "MYPOOL"
 
 	// Create the connector from user configuration
 	connector, err := oracle.NewOracleConnector(cfg)
@@ -98,41 +98,11 @@ func simpleExplicit(cfg *oracleconfig.OracleDriverConfig) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// this connection is now attached to 'MYPOOL'
+
 	defer conn.Close()
 
-
-	// Grab a connection wrapper to use the DRCP APIs
-	wrapper, err := oracle.NewConnectionWrapper(conn)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Check if the connection is actually attached.
-	attached := wrapper.IsAttached()
-
-	if !attached {
-		// Explicitly asked for attachment
-		attachStatus, err := wrapper.AttachToDrcpPool(context.Background())
-		if err != nil {
-			log.Fatal(err)
-		}
-		if attachStatus.IsTagMismatch() {
-			// The remote DRCP pool was not able to fulfill our request for "MyTag"
-			// ...
-		}
-	}
-
-	// At this stage the connection is attached and can be used for SQL operations.
-	//...
-
-	// Explicitly asked for connection detachment
-	err = wrapper.DetachFromDrcpPool(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Rest of application goes here.
-	// ...
 }
 
 func simpleRun(config *oracleconfig.OracleDriverConfig) {
@@ -171,7 +141,6 @@ func simpleRun(config *oracleconfig.OracleDriverConfig) {
 	}
 	// ...
 	rows.Close()
-
 
 	// that will detach the connection from DRCP pool
 	err = cnx.Close()

@@ -75,78 +75,7 @@ resources when the connection becomes idle.
 
 There are two scenarii: when the connection is used directly by the client application and when it is used implicitly by the `sql.DB` object.
 
-#### Implicit Usage
-
 This is when the connection is handled by the Go connection pool, or when `ExecContext` and `QueryContext` are executed against the `sql.DB` object.
 
 In such situations, the driver attaches the connection automatically when the connection is used and detaches it when it returned to the pool.
-
-#### Explicit Usage
-
-This is when the connection is handled by the client application.
-The connection wrapper is then used to attach and detach the connection to remote DRCP pool 
-
-The wrapper implements the following interface.
-
-```go
-
-type DRCPAttachmentStatus int
-
-// IsTagMismatch reports whether the acquired DRCP session did not fully match
-// the requested tag. A tag mismatch does not necessarily mean attachment failed.
-func (s DRCPAttachmentStatus) IsTagMismatch() bool 
-
-// IsSessionChanged reports whether the database session associated with the
-// DRCP connection changed. Client-side state associated with the prior session
-// may need to be invalidated.
-func (s DRCPAttachmentStatus) IsSessionChanged() bool
-
-// IsPurityNew reports whether DRCP created a new database session instead of
-// reusing an existing session.
-func (s DRCPAttachmentStatus) IsPurityNew() bool
-
-// IsStmtCacheDestroy reports whether DRCP indicates that the statement cache
-// should be purged. When this status is set with IsSessionChanged, cached
-// cursor IDs belong to the prior session and should be discarded.
-func (s DRCPAttachmentStatus) IsStmtCacheDestroy() bool
-
-type DRCPUser interface {
-	// Attach the connection to the remote pool.
-	// Returns attachment status.
-	// Errors: OGD-00180 / OGD-00181 (see below )
-	AttachToDrcpPool(ctx context.Context) (DRCPAttachmentStatus, error)
-	
-	// Detach the connection from the remote pool. 
-	//Errors: OGD-00180 / OGD-00181 
-    DetachFromDrcpPool() error
-
-	// Checks that current underlying connection is attached
-    IsAttached() bool
-}
-```
-
-Example usage:
-
-```go
-db  := sql.OpenDB(NewOracleConnector(cfg))
-// ...
-conn := db.Conn(context.Background())
-// ...
-connectionWrapper, err := oracle.NewConnectionWrapper(conn)
-// ...
-if !connectionWrapper.IsIsAttached() {
-   status, err := connectionWrapper.AttachToResidentPool(context.Background())
-   /...
-}
-conn.QueryContext(...)
-err := connectionWrapper.DetachFromResidentPool()
-```
-
-
-### Errors
-
-`OGD-00180` – DRCP is not enabled: an attempt was made to perform an operation that requires DRCP to be enabled.
-
-`OGD-00181` – Invalid state: an attempt was made to perform an operation that requires the connection to be attached or detached.
-
 

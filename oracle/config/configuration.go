@@ -169,13 +169,9 @@ type OracleConnectionProperties struct {
 //
 //	Class name is mandatory whereas the other can be left blank.
 type DatabaseResidentConnectionPooling struct {
-	ClassName         string `ns_name:"pool_connection_class" help:"sets the DRCP connection class, when not specified, default server class name SYS.SHARED is used"`
-	Purity            string `ns_name:"pool_purity" help:"sets the DRCP purity" validator:"validateDRCPPurity" `
-	Boundary          string `ns_name:"pool_boundary" help:"sets the DRCP boundary" validator:"validateDRCPBoundary" `
-	Tag               string `help:"sets the tag for pooled DRCP connection"`
-	UseMultipleTag    bool   `default:"false"  help:"Does the  pooled DRCP connection use multiple tags"`
-	FixUpCallBackName string `help:"Name of the PL/SQL callback used to transform a session checked out from the pool to the desired state requested by the application"`
-	PoolName          string `ns_name:"pool_name" default:"" help:"sets the name of the DRCP pool to use"`
+	ClassName string `ns_name:"pool_connection_class" help:"sets the DRCP connection class, when not specified, default server class name SYS.SHARED is used"`
+	Purity    string `ns_name:"pool_purity" help:"sets the DRCP purity" validator:"validateDRCPPurity" `
+	PoolName  string `ns_name:"pool_name" default:"" help:"sets the name of the DRCP pool to use"`
 }
 
 func (config DatabaseResidentConnectionPooling) String() string {
@@ -976,7 +972,6 @@ func init() {
 	_fieldsValidators["validateUserName"] = validateUserName
 	_fieldsValidators["validateServerType"] = validateServerType
 	_fieldsValidators["validateDRCPPurity"] = validateDRCPPurity
-	_fieldsValidators["validateDRCPBoundary"] = validateDRCPBoundary
 
 	// populates flags for each driver config items
 	NewOracleDriverConfig().populateFlags()

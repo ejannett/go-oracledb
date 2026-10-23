@@ -413,7 +413,6 @@ func TestDriver_OpenConnectorForDRCP(t *testing.T) {
 	c.ConnectionProperties.ServerType = common.ServerTypePooled
 	c.ConnectionProperties.Drcp.ClassName = "test_class"
 	c.ConnectionProperties.Drcp.Purity = common.DrcpPuritySelf
-	c.ConnectionProperties.Drcp.Boundary = common.DrcpBoundaryStatement
 	c.ConnectDescriptor = "user/pass@localhost:1521/freepdb1"
 	err := c.Validate()
 	if err != nil {
