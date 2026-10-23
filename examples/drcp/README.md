@@ -31,6 +31,7 @@ To run the _customPool_ example you need to set up the pool MYPOOL using the fol
 
 logon as sysdba on the remote server and issue the following commands (logged as SYSDBA)
 ```sql
+
 exec dbms_connection_pool.add_pool('mypool')
 exec dbms_connection_pool.configure_pool(pool_name => 'mypool',minsize => 4,maxsize => 40,incrsize => 2,session_cached_cursors => 20,inactivity_timeout => 300,max_think_time => 600,max_use_session => 500000,max_lifetime_session => 86400)
 exec dbms_connection_pool.start_pool('mypool')
