@@ -925,6 +925,10 @@ func init() {
 		GetScanTypeForBinaryColumn, unwrapCLRColumn)); err != nil {
 		common.Odl.Warn("Failed to register binary decoder", "error", err)
 	}
+	if err := DecoderRegistry.Register(DtyBuri, MinTTCProtocolVersion, newTypeDecoder(
+		DecodeUrowidColumn, GetScanTypeForVarcharColumn, unwrapUrowidColumn)); err != nil {
+		common.Odl.Warn("Failed to register UROWID decoder", "error", err)
+	}
 
 	if err := DecoderRegistry.Register(DtyClob, MinTTCProtocolVersion,
 		newTypeDecoder(DecodeClob, GetScanTypeForCLOBColumn, unwrapClobColumn)); err != nil {

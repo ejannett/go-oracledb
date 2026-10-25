@@ -1700,3 +1700,63 @@ func TestDriver_Select_NullFromComputedExpression(t *testing.T) {
 		}
 	}
 }
+
+func TestDriver_Select_UROWID(t *testing.T) {
+	t.Parallel()
+
+	if TestingConfig == nil {
+		t.Skip("No configuration available")
+	}
+
+	db, err := openTestDBWithConfig(TestingConfig)
+	if err != nil {
+		t.Fatalf("failed to open DB: %v", err)
+	}
+	defer db.Close()
+
+	table := createObjectName("t_urowid")
+	ctx := context.Background()
+	cols := map[string]string{
+		"id":       "NUMBER(10)",
+		"payload":  "VARCHAR2(40)",
+		"row_addr": "UROWID",
+	}
+	if err := createTable(ctx, db, table, cols); err != nil {
+		t.Fatalf("create table failed: %v", err)
+	}
+	defer func() {
+		if err := dropTable(ctx, db, table); err != nil {
+			t.Errorf("cleanup drop table %s failed: %v", table, err)
+		}
+	}()
+
+	if _, err := db.ExecContext(context.Background(), "INSERT INTO "+table+" (id, payload) VALUES (1, 'alpha')"); err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+	if _, err := db.ExecContext(context.Background(), "UPDATE "+table+" SET row_addr = ROWID WHERE id = 1"); err != nil {
+		t.Fatalf("update failed: %v", err)
+	}
+
+	var count int
+	err = db.QueryRowContext(context.Background(),
+		fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id = 1", table),
+	).Scan(&count)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("matching rows=%d", count)
+	var id int64
+	var got sql.NullString
+	err = db.QueryRowContext(
+		context.Background(),
+		fmt.Sprintf("SELECT id, row_addr FROM %s WHERE id = 1", table),
+	).Scan(&id, &got)
+	if err != nil {
+		t.Fatalf("query/scan failed: %v", err)
+	}
+	if !got.Valid || got.String == "" {
+		t.Fatalf("expected a nonempty UROWID, got %+v", got)
+	}
+
+	t.Logf("ROWID =%s", got.String)
+}

@@ -191,6 +191,55 @@ func unwrapCLRColumn(ctx context.Context, mar driverCommon.Marshaller, env colum
 }
 
 /*
+unwrapUrowidColumn reads a UROWID column value from the row data stream.
+
+Description:
+
+	Reads the outer UB4 length and then the CLR-framed internal UROWID bytes.
+	A zero outer length represents SQL NULL. For a non-NULL value, the outer
+	length must match the length of the CLR payload.
+
+Parameters:
+  - ctx: Context for the read operations.
+  - mar: Marshaller positioned at the start of the UROWID value.
+  - env: Column context used for diagnostics.
+
+Returns:
+  - columnPayload: Raw internal UROWID bytes, or nil data for SQL NULL.
+  - error: Non-nil if reading the value fails or the two lengths differ.
+
+Errors:
+  - Returns FailUnmarshal for read errors.
+  - Returns ProtocolViolation when the outer and CLR lengths differ.
+*/
+func unwrapUrowidColumn(ctx context.Context, mar driverCommon.Marshaller, env columnUnwrapContext) (columnPayload, error) {
+	outerLength, err := mar.UnmarshalUB4(ctx)
+	if err != nil {
+		common.Odl.Warn("unwrapUrowidColumn: failed to read outer length",
+			"index", env.index, "error", err)
+		return columnPayload{}, common.NewOracleError(oracleErrors.FailUnmarshal, err, TTCMsgTypeDescription[TTIRXD])
+	}
+	if outerLength == 0 {
+		return columnPayload{}, nil
+	}
+
+	data, length, err := mar.UnmarshalCLRColumnData(ctx)
+	if err != nil {
+		common.Odl.Warn("unwrapUrowidColumn: failed to read CLR payload",
+			"index", env.index, "outerLength", outerLength, "error", err)
+		return columnPayload{}, common.NewOracleError(oracleErrors.FailUnmarshal, err, TTCMsgTypeDescription[TTIRXD])
+	}
+	if length < 0 || uint64(length) != uint64(outerLength) {
+		common.Odl.Warn("unwrapUrowidColumn: outer and CLR lengths differ",
+			"index", env.index, "outerLength", outerLength, "clrLength", length)
+		return columnPayload{}, common.NewOracleError(oracleErrors.ProtocolViolation, nil)
+	}
+	common.Odl.Fine("RXD Unwrap: UROWID column data decoded",
+		"col", env.index, "length", length, "data", data)
+	return byteColumnPayload(data), nil
+}
+
+/*
 unwrapClobColumn reads a prefetched CLOB or NCLOB column.
 
 Description:
