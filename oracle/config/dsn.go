@@ -40,27 +40,76 @@ package config
 
 import (
 	"strings"
+
+	"github.com/oracle/go-oracledb/v26/internal/common"
+	driverCommon "github.com/oracle/go-oracledb/v26/internal/driver/common"
+	oracleErrors "github.com/oracle/go-oracledb/v26/oracle/errors"
 )
 
 func _isLongFormat(dsn string) bool {
 	return strings.HasPrefix(dsn, "(")
 }
 
-func HandleDsn(dsn string) (*OracleDriverConfig, error) {
-	if _isLongFormat(dsn) {
-		return handleLongFormatDsn(dsn)
-	} else {
-		return handleEasyConnectFormatDsn(dsn)
+func HandleDsn(dsn string, drvConfig *OracleDriverConfig) error {
+	cleanupDSN := driverCommon.StripSpacesOutsideQuotes(dsn)
+
+	var effectiveDsn = cleanupDSN
+
+	// first extract credentials if specified
+	parts := strings.SplitN(dsn, "@", 2)
+	effectiveDsn = parts[0]
+	if len(parts) == 2 {
+		// we have some
+		creds := strings.SplitN(parts[0], "/", 2)
+		if len(creds) != 2 {
+			return common.NewOracleError(oracleErrors.NamingDSNInvalid, nil, dsn)
+		}
+		if len(creds[0]) == 0 {
+			return common.NewOracleError(oracleErrors.NamingDSNInvalid, nil, dsn)
+		}
+		// Credentials in config is not authorized when also specified
+		// in dsn
+		if drvConfig.Credentials.User != "" || drvConfig.Credentials.Password != "" {
+			return common.NewOracleError(oracleErrors.ConflictingConnectionParameterSource, nil, "credentials")
+		}
+		drvConfig.Credentials.User = creds[0]
+		drvConfig.Credentials.User = creds[1]
+		effectiveDsn = parts[1]
 	}
-	return nil, nil
+
+	// new extract parameters after the dns if any
+	indexOfQMark := strings.LastIndex(effectiveDsn, "?")
+	if indexOfQMark != -1 {
+		// check that we did not locate a '?' within the '(...)'
+		indexOfClosingP := strings.LastIndex(effectiveDsn, ")")
+		if indexOfClosingP == -1 || indexOfClosingP < indexOfQMark {
+			// that is a valid ? marker, deal with it.
+			connectionParts := strings.SplitN(effectiveDsn, "?", 2)
+			effectiveDsn = connectionParts[0]
+			var parameterMap map[string]string
+			var err error
+			if len(connectionParts) == 2 && len(connectionParts[1]) > 0 {
+				parameterMap, err = QueryStringToMap(connectionParts[1])
+				if err != nil {
+					return common.NewOracleError(oracleErrors.NamingDSNInvalid, err, dsn)
+				}
+				if err := drvConfig.AssignFromMap(parameterMap); err != nil {
+					return common.NewOracleError(oracleErrors.NamingDSNInvalid, err, dsn)
+				}
+			}
+		}
+	}
+
+	// new handle the connection string.
+	if _isLongFormat(effectiveDsn) {
+		return handleLongFormatDsn(effectiveDsn, drvConfig)
+	} else {
+		// everything is already parsed at that stage.
+		drvConfig.ConnectDescriptor = effectiveDsn
+		return nil
+	}
 }
 
-func handleLongFormatDsn(dsn string) (*OracleDriverConfig, error) {
-	return nil,nil
-}
-func handleEasyConnectFormatDsn(dsn string) (*OracleDriverConfig, error) {
-	// Remove all whitespace
-	// TODO : verify that necessary
-	//url = driverCommon.StripSpacesOutsideQuotes(dsn)
-	return nil,nil
+func handleLongFormatDsn(dsn string, drvConfig *OracleDriverConfig) error {
+	return nil
 }

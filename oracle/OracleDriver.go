@@ -165,73 +165,16 @@ func (drv *Driver) openConnector(dsn string) (driver.Connector, error) {
 		return nil, common.NewOracleError(oracleErrors.NamingDSNInvalid, err, dsn)
 	}
 
-	var cred = make([]string, 2)
-	var dsnToUse = dsn
 
-	if len(dsnToUse) != 0 {
-		// grab user/password if any
-		parts := strings.SplitN(dsn, "@", 2)
-		if len(parts) == 2 {
-			cred = strings.SplitN(parts[0], "/", 2)
-			if len(cred) != 2 {
-				return nil, common.NewOracleError(oracleErrors.NamingDSNInvalid, nil, dsn)
-			}
-			if len(cred[0]) == 0 {
-				return nil, common.NewOracleError(oracleErrors.NamingDSNInvalid, nil, dsn)
-			}
-			dsnToUse = parts[1]
-
-			// Credentials in config is not authorized when also specified
-			// in dsn
-			if confToUse.Credentials.User != "" || confToUse.Credentials.Password != "" {
-				return nil, common.NewOracleError(oracleErrors.ConflictingConnectionParameterSource, nil, "credentials")
-			}
-
-			// assign credentials
-			// precedence is given to foreign source
-			// initialize with what we have in the Data Source Name if any
-			if len(cred[0]) != 0 {
-				confToUse.Credentials.User = cred[0]
-			}
-			if len(cred[1]) != 0 {
-				confToUse.Credentials.Password = cred[1]
-			}
-		}
-	} else {
-		// fallback to DNS in config then
-		if len(confToUse.ConnectDescriptor) > 0 {
-			common.Odl.Debug("falling back to Data Source Name from configuration")
-			dsnToUse = confToUse.ConnectDescriptor
-		}
+	err := oracleconfig.HandleDsn(dsn, confToUse)
+	if common.Odl.Enabled(common.BackgroundContext, slog.LevelDebug) {
+		common.Odl.Debug("new connector created", "configuration", confToUse)
 	}
-
-	if len(dsnToUse) == 0 {
-		// no way we can go on there
-		return nil, common.NewOracleError(oracleErrors.NamingDSNInvalid, nil, "Data Source Name is empty")
-	}
-
-	connectionParts := strings.SplitN(dsnToUse, "?", 2)
-	connectDescriptor := connectionParts[0]
-	if len(connectionParts) == 2 && len(connectionParts[1]) > 0 {
-		queryMap, err := oracleconfig.QueryStringToMap(connectionParts[1])
-		if err != nil {
-			return nil, common.NewOracleError(oracleErrors.NamingDSNInvalid, err, dsn)
-		}
-		if err := confToUse.AssignFromMap(queryMap); err != nil {
-			return nil, common.NewOracleError(oracleErrors.NamingDSNInvalid, err, dsn)
-		}
-	}
-
-	confToUse.ConnectDescriptor = connectDescriptor
 
 	if validateErr := confToUse.Validate(); validateErr != nil {
 		return nil, common.NewOracleError(oracleErrors.NamingDSNInvalid, validateErr, dsn)
 	}
 
-	newConf, err := oracleconfig.HandleDsn(connectDescriptor)
-	if common.Odl.Enabled(common.BackgroundContext, slog.LevelDebug) {
-		common.Odl.Debug("new connector created", "configuration", newConf)
-	}
 
 	// let network layer parse it now.
 	// build again a Data Source Name that network layer can understand
