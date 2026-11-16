@@ -290,6 +290,8 @@ var testCases = []oracleTest.CategorizedTestCase{
 	{Name: "TestDriver_OSON_ZeroValue", Categories: "unitary", Exclusive: false, Fn: TestDriver_OSON_ZeroValue},
 	{Name: "TestDriver_OSON_NullDistinction", Categories: "functional", Exclusive: false, Fn: TestDriver_OSON_NullDistinction},
 	{Name: "TestDriver_OpenConnectorPreservesQuotedInParameters", Categories: "unitary", Exclusive: false, Fn: TestDriver_OpenConnectorPreservesQuotedInParameters},
+	{Name: "TestCheckDecimalScale", Categories: "functional", Exclusive: false, Fn: TestCheckDecimalScale},
+	{Name: "TestCheckNumberMantissa", Categories: "functional", Exclusive: false, Fn: TestCheckNumberMantissa},
 }
 
 func TestCategoryExecutor(t *testing.T) {
